@@ -8,10 +8,12 @@ TEMPLATE = lib
 CONFIG += staticlib
 
 HEADERS += \
-    QZStream.h
+    QZStream.h \
+    QCCZStream.h
 
 SOURCES += \
-    QZStream.cpp
+    QZStream.cpp \
+    QCCZStream.cpp
 
 include(../QZStream.pri)
 

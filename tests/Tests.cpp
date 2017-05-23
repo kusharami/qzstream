@@ -1,6 +1,7 @@
 ﻿#include "Tests.h"
 
 #include "QZStream.h"
+#include "QCCZStream.h"
 
 #undef compress
 
@@ -13,60 +14,100 @@
 void Tests::test_data()
 {
 	QADD_COLUMN(QByteArray, sourceBytes);
+	QADD_COLUMN(int, compressionType);
 
-	QTest::newRow("empty") << QByteArray(256, 0);
-	QTest::newRow("random") << QByteArray(512, Qt::Uninitialized);
+	QByteArray empty(256, 0);
+	QByteArray random(512, Qt::Uninitialized);
+
+	QTest::newRow("empty_z") << empty << (int) COMPRESS_Z;
+	QTest::newRow("random_z") << random << (int) COMPRESS_Z;
+	QTest::newRow("empty_ccz") << empty << (int) COMPRESS_CCZ;
+	QTest::newRow("random_ccz") << random << (int) COMPRESS_CCZ;
 }
 
 void Tests::test()
 {
 	QFETCH(QByteArray, sourceBytes);
+	QFETCH(int, compressionType);
 
 	QByteArray bytes;
 
 	{
 		QBuffer buffer(&bytes);
-		QZCompressionStream compress(&buffer, Z_BEST_COMPRESSION);
-		QVERIFY(compress.open());
-		auto openMode1 = compress.openMode() & ~QIODevice::Unbuffered;
-		auto openMode2 = buffer.openMode() & ~QIODevice::Unbuffered;
-		QVERIFY(openMode1 == openMode2);
-		QVERIFY(!compress.isReadable());
-		QVERIFY(compress.isWritable());
-		QVERIFY(compress.pos() == 0);
-		QVERIFY(compress.write(sourceBytes) == sourceBytes.size());
-		QVERIFY(compress.pos() == sourceBytes.size());
-		QVERIFY(compress.seek(sourceBytes.size()));
-		QVERIFY(!compress.seek(0));
-		compress.close();
-		QVERIFY(!compress.hasError());
+		auto compress = newCompressor(compressionType);
+		QVERIFY(nullptr != compress);
+		compress->setStream(&buffer);
+		QVERIFY(compress->open(QIODevice::WriteOnly));
+		QVERIFY(compress->isWritable() == buffer.isWritable());
+		QVERIFY(compress->isReadable() == buffer.isReadable());
+		QVERIFY(!compress->isReadable());
+		QVERIFY(compress->isWritable());
+		QVERIFY(compress->pos() == 0);
+		QVERIFY(compress->write(sourceBytes) == sourceBytes.size());
+		QVERIFY(compress->pos() == sourceBytes.size());
+		QVERIFY(compress->seek(sourceBytes.size()));
+		QVERIFY(!compress->seek(0));
+		compress->close();
+		QVERIFY(!compress->hasError());
 		QVERIFY(buffer.isOpen());
+		delete compress;
 	}
 
 	{
 		QBuffer buffer(&bytes);
-		QZDecompressionStream decompress(&buffer, sourceBytes.size());
-		QVERIFY(decompress.open());
-		auto openMode1 = decompress.openMode() & ~QIODevice::Unbuffered;
-		auto openMode2 = buffer.openMode() & ~QIODevice::Unbuffered;
-		QVERIFY(openMode1 == openMode2);
-		QVERIFY(decompress.isReadable());
-		QVERIFY(!decompress.isWritable());
+		auto decompress = newDecompressor(
+				compressionType, sourceBytes.size());
+		QVERIFY(nullptr != decompress);
+		decompress->setStream(&buffer);
+		QVERIFY(decompress->open(QIODevice::ReadOnly));
+		QVERIFY(decompress->isWritable() == buffer.isWritable());
+		QVERIFY(decompress->isReadable() == buffer.isReadable());
+		QVERIFY(decompress->isReadable());
+		QVERIFY(!decompress->isWritable());
 
-		QVERIFY(decompress.readAll() == sourceBytes);
-		QVERIFY(decompress.seek(1));
-		auto uncompressed = decompress.readAll();
+		QVERIFY(decompress->readAll() == sourceBytes);
+		QVERIFY(decompress->seek(1));
+		auto uncompressed = decompress->readAll();
 		QVERIFY(
 			0 == memcmp(
 				uncompressed.data(),
 				&sourceBytes.data()[1],
 				uncompressed.size()));
 
-		QVERIFY(decompress.seek(sourceBytes.size()));
-		QVERIFY(!decompress.seek(sourceBytes.size() + 1));
+		QVERIFY(decompress->seek(sourceBytes.size()));
+		QVERIFY(!decompress->seek(sourceBytes.size() + 1));
 
-		decompress.close();
-		QVERIFY(!decompress.hasError());
+		decompress->close();
+		QVERIFY(!decompress->hasError());
 		QVERIFY(buffer.isOpen());
+		delete decompress;
 	}
+}
+
+QZStreamBase *Tests::newCompressor(int type)
+{
+	switch (type)
+	{
+		case COMPRESS_Z:
+			return new QZCompressionStream(nullptr, Z_BEST_COMPRESSION);
+
+		case COMPRESS_CCZ:
+			return new QCCZCompressionStream(nullptr, Z_BEST_COMPRESSION);
+	}
+
+	return nullptr;
+}
+
+QZStreamBase *Tests::newDecompressor(int type, int uncompressedSize)
+{
+	switch (type)
+	{
+		case COMPRESS_Z:
+			return new QZDecompressionStream(nullptr, uncompressedSize);
+
+		case COMPRESS_CCZ:
+			return new QCCZDecompressionStream;
+	}
+
+	return nullptr;
 }

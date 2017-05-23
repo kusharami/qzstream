@@ -7,9 +7,12 @@
 class QZStreamBase : public QIODevice
 {
 public:
+	void setStream(QIODevice *stream);
+
 	bool hasError() const;
 
 protected:
+	QZStreamBase(QObject *parent = nullptr);
 	QZStreamBase(QIODevice *stream, QObject *parent = nullptr);
 
 	virtual bool waitForReadyRead(int msecs) override;
@@ -19,6 +22,7 @@ protected:
 
 protected:
 	bool openStream(OpenMode mode);
+	bool streamSeekInit();
 
 protected:
 	QIODevice *mStream;
@@ -42,15 +46,18 @@ inline bool QZStreamBase::hasError() const
 	return mHasError;
 }
 
-class QZDecompressionStream final : public QZStreamBase
+class QZDecompressionStream : public QZStreamBase
 {
 	Q_OBJECT
 
 public:
+	explicit QZDecompressionStream(QObject *parent = nullptr);
 	explicit QZDecompressionStream(
 		QIODevice *source,
 		qint64 uncompressedSize = -1,
 		QObject *parent = nullptr);
+
+	void setUncompressedSize(qint64 value);
 
 	virtual ~QZDecompressionStream() override;
 
@@ -64,28 +71,40 @@ public:
 	virtual bool seek(qint64 pos) override;
 
 	virtual qint64 bytesAvailable() const override;
-	virtual qint64 bytesToWrite() const override;
 
 	virtual bool canReadLine() const override;
 
 	virtual qint64 readData(char *data, qint64 maxlen) override;
 
-private:
-	virtual qint64 writeData(const char *, qint64) override;
+protected:
+	virtual bool initOpen(OpenMode mode);
 
 private:
+	virtual qint64 bytesToWrite() const override;
+	virtual qint64 writeData(const char *, qint64) override;
+
+protected:
 	qint64 mUncompressedSize;
 };
 
-class QZCompressionStream final : public QZStreamBase
+inline void QZDecompressionStream::setUncompressedSize(qint64 value)
+{
+	mUncompressedSize = value;
+}
+
+class QZCompressionStream : public QZStreamBase
 {
 	Q_OBJECT
 
 public:
+	explicit QZCompressionStream(QObject *parent = nullptr);
 	explicit QZCompressionStream(
 		QIODevice *target,
-		int compressionLevel = -1,
+		int compressionLevel = Z_DEFAULT_COMPRESSION,
 		QObject *parent = nullptr);
+
+	int compressionLevel() const;
+	void setCompressionLevel(int level);
 
 	virtual ~QZCompressionStream() override;
 
@@ -101,12 +120,25 @@ public:
 	virtual qint64 bytesToWrite() const override;
 	virtual qint64 writeData(const char *data, qint64 maxlen) override;
 
+protected:
+	virtual bool initOpen(OpenMode mode);
+
 private:
 	virtual qint64 readData(char *, qint64) override;
 	virtual qint64 bytesAvailable() const override;
 
 	bool flushBuffer(int size = BUFFER_SIZE);
 
-private:
+protected:
 	int mCompressionLevel;
 };
+
+inline int QZCompressionStream::compressionLevel() const
+{
+	return mCompressionLevel;
+}
+
+inline void QZCompressionStream::setCompressionLevel(int level)
+{
+	mCompressionLevel = level;
+}
