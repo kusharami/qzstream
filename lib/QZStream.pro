@@ -2,7 +2,7 @@ VERSION = 1.0.0
 
 QT -= gui
 
-TARGET = qzstream
+TARGET = QZStream
 
 TEMPLATE = lib
 CONFIG += staticlib
