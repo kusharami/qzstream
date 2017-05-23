@@ -119,14 +119,7 @@ QZDecompressionStream::~QZDecompressionStream()
 
 bool QZDecompressionStream::isSequential() const
 {
-	return (isOpen()
-			? mUncompressedSize < 0 || mStream->isSequential()
-			: true);
-}
-
-qint64 QZDecompressionStream::pos() const
-{
-	return (isOpen() ? mZStream.total_out : 0);
+	return mStream->isSequential();
 }
 
 bool QZDecompressionStream::open(OpenMode mode)
@@ -189,6 +182,88 @@ bool QZDecompressionStream::seek(qint64 pos)
 		return false;
 	}
 
+	return seekInternal(pos, &QIODevice::read);
+}
+
+qint64 QZDecompressionStream::bytesAvailable() const
+{
+	if (!isOpen())
+		return 0;
+
+	if (mUncompressedSize >= 0)
+		return qMax(mUncompressedSize - pos(), qint64(0));
+
+	return 0xFFFFFFFF;
+}
+
+qint64 QZDecompressionStream::bytesToWrite() const
+{
+	return 0;
+}
+
+bool QZDecompressionStream::canReadLine() const
+{
+	return false;
+}
+
+qint64 QZDecompressionStream::readData(char *data, qint64 maxlen)
+{
+	if (!mStream->isOpen() || !streamSeekInit())
+	{
+		mHasError = true;
+		setErrorString("Source stream seek failed.");
+	} else
+	if (seekInternal(pos(), &QZDecompressionStream::readInternal))
+	{
+		return readInternal(data, maxlen);
+	}
+
+	return 0;
+}
+
+bool QZDecompressionStream::initOpen(OpenMode mode)
+{
+	Q_ASSERT(!isOpen());
+	if (0 == (mode & ReadOnly))
+	{
+		mHasError = true;
+		setErrorString("Cannot open decompression stream whith no read mode.");
+		return false;
+	}
+
+	if (!openStream(mode))
+	{
+		return false;
+	}
+
+	if (!mStream->isReadable())
+	{
+		mHasError = true;
+		setErrorString("Source stream is not readable.");
+		return false;
+	}
+
+	if (mStream->isTextModeEnabled())
+	{
+		mHasError = true;
+		setErrorString("Source stream is not binary.");
+		return false;
+	}
+
+	mode = ReadOnly | Unbuffered;
+
+	mHasError = false;
+	setErrorString(QString());
+	mStreamPosition = mStreamOriginalPosition;
+	mZStream.next_in = mBuffer;
+	mZStream.avail_in = 0;
+
+	return true;
+}
+
+bool QZDecompressionStream::seekInternal(
+	qint64 pos, qint64 (QZDecompressionStream::*read)(char *, qint64))
+{
 	qint64 currentPos = static_cast<qint64>(mZStream.total_out);
 	currentPos -= pos;
 	if (currentPos > 0)
@@ -203,7 +278,7 @@ bool QZDecompressionStream::seek(qint64 pos)
 		mZStream.next_in = mBuffer;
 		mZStream.avail_in = 0;
 
-		if (!QZStreamBase::seek(0))
+		if (this->pos() != 0 && !QZStreamBase::seek(0))
 		{
 			mHasError = true;
 			return false;
@@ -219,7 +294,7 @@ bool QZDecompressionStream::seek(qint64 pos)
 
 		auto blockSize = qMin(pos, qint64(sizeof(buf)));
 
-		auto readBytes = read(buf, blockSize);
+		auto readBytes = (this->*read)(buf, blockSize);
 		if (readBytes != blockSize)
 		{
 			return false;
@@ -230,36 +305,8 @@ bool QZDecompressionStream::seek(qint64 pos)
 	return true;
 }
 
-qint64 QZDecompressionStream::bytesAvailable() const
+qint64 QZDecompressionStream::readInternal(char *data, qint64 maxlen)
 {
-	if (!isOpen())
-		return 0;
-
-	if (mUncompressedSize >= 0)
-		return qMax(mUncompressedSize - pos(), qint64(0));
-
-	return BUFFER_SIZE;
-}
-
-qint64 QZDecompressionStream::bytesToWrite() const
-{
-	return 0;
-}
-
-bool QZDecompressionStream::canReadLine() const
-{
-	return (isOpen() && mUncompressedSize >= 0);
-}
-
-qint64 QZDecompressionStream::readData(char *data, qint64 maxlen)
-{
-	if (!mStream->isOpen() || !streamSeekInit())
-	{
-		mHasError = true;
-		setErrorString("Source stream seek failed.");
-		return 0;
-	}
-
 	mZStream.next_out = reinterpret_cast<Bytef *>(data);
 
 	qint64 count = maxlen;
@@ -307,46 +354,6 @@ qint64 QZDecompressionStream::readData(char *data, qint64 maxlen)
 	return maxlen - count;
 }
 
-bool QZDecompressionStream::initOpen(OpenMode mode)
-{
-	Q_ASSERT(!isOpen());
-	if (0 == (mode & ReadOnly))
-	{
-		mHasError = true;
-		setErrorString("Cannot open decompression stream whith no read mode.");
-		return false;
-	}
-
-	if (!openStream(mode))
-	{
-		return false;
-	}
-
-	if (!mStream->isReadable())
-	{
-		mHasError = true;
-		setErrorString("Source stream is not readable.");
-		return false;
-	}
-
-	if (mStream->isTextModeEnabled())
-	{
-		mHasError = true;
-		setErrorString("Source stream is not binary.");
-		return false;
-	}
-
-	mode = ReadOnly | Unbuffered;
-
-	mHasError = false;
-	setErrorString(QString());
-	mStreamPosition = mStreamOriginalPosition;
-	mZStream.next_in = mBuffer;
-	mZStream.avail_in = 0;
-
-	return true;
-}
-
 qint64 QZDecompressionStream::writeData(const char *, qint64)
 {
 	return 0;
@@ -375,11 +382,6 @@ QZCompressionStream::~QZCompressionStream()
 bool QZCompressionStream::isSequential() const
 {
 	return true;
-}
-
-qint64 QZCompressionStream::pos() const
-{
-	return isOpen() ? mZStream.total_in : 0;
 }
 
 bool QZCompressionStream::open(OpenMode mode)
@@ -447,15 +449,9 @@ qint64 QZCompressionStream::size() const
 	return isOpen() ? mZStream.total_in : 0;
 }
 
-bool QZCompressionStream::seek(qint64 pos)
-{
-	return (isOpen() && pos == mZStream.total_in) ||
-		   QZStreamBase::seek(pos);
-}
-
 qint64 QZCompressionStream::bytesToWrite() const
 {
-	return mStream->bytesToWrite();
+	return isOpen() ? mZStream.avail_out : 0;
 }
 
 qint64 QZCompressionStream::writeData(const char *data, qint64 maxlen)

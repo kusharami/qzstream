@@ -42,10 +42,10 @@ void Tests::test()
 		QVERIFY(compress->isReadable() == buffer.isReadable());
 		QVERIFY(!compress->isReadable());
 		QVERIFY(compress->isWritable());
-		QVERIFY(compress->pos() == 0);
+		QVERIFY(compress->size() == 0);
 		QVERIFY(compress->write(sourceBytes) == sourceBytes.size());
-		QVERIFY(compress->pos() == sourceBytes.size());
-		QVERIFY(compress->seek(sourceBytes.size()));
+		QVERIFY(compress->size() == sourceBytes.size());
+		QVERIFY(!compress->seek(sourceBytes.size()));
 		QVERIFY(!compress->seek(0));
 		compress->close();
 		QVERIFY(!compress->hasError());
@@ -64,9 +64,13 @@ void Tests::test()
 		QVERIFY(decompress->isReadable() == buffer.isReadable());
 		QVERIFY(decompress->isReadable());
 		QVERIFY(!decompress->isWritable());
-
+		QVERIFY(decompress->pos() == 0);
+		QVERIFY(decompress->peek(sourceBytes.size()) == sourceBytes);
+		QVERIFY(decompress->pos() == 0);
 		QVERIFY(decompress->readAll() == sourceBytes);
+		QVERIFY(decompress->pos() == sourceBytes.size());
 		QVERIFY(decompress->seek(1));
+		QVERIFY(decompress->pos() == 1);
 		auto uncompressed = decompress->readAll();
 		QVERIFY(
 			0 == memcmp(
@@ -74,8 +78,10 @@ void Tests::test()
 				&sourceBytes.data()[1],
 				uncompressed.size()));
 
+		QVERIFY(decompress->pos() == sourceBytes.size());
 		QVERIFY(decompress->seek(sourceBytes.size()));
 		QVERIFY(!decompress->seek(sourceBytes.size() + 1));
+		QVERIFY(decompress->pos() == sourceBytes.size());
 
 		decompress->close();
 		QVERIFY(!decompress->hasError());
