@@ -3,14 +3,14 @@ unix|win32-g++ {
     QMAKE_CXXFLAGS += -Wall
 
     LIBS += -lz
+} else {
+    win32 {
+        QMAKE_CXXFLAGS_WARN_OFF -= -W0
+        QMAKE_CXXFLAGS += -W3
+        QMAKE_LFLAGS += /NODEFAULTLIB:LIBCMT
+
+        INCLUDEPATH += $$[QT_INSTALL_HEADERS]/QtZlib
+
+        LIBS += -lWs2_32
+    }
 }
-
-win32 {
-    QMAKE_CXXFLAGS_WARN_OFF -= -W0
-    QMAKE_CXXFLAGS += -W3
-
-    INCLUDEPATH += $$[QT_INSTALL_HEADERS]/QtZlib
-
-    LIBS += -lWs2_32
-}
-
