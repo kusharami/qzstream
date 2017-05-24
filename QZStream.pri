@@ -1,12 +1,7 @@
 unix|win32-g++ {
-    QMAKE_CXXFLAGS_WARN_OFF -= -w
-    QMAKE_CXXFLAGS += -Wall
-
-    LIBS += -lz
+     LIBS += -lz
 } else {
     win32 {
-        QMAKE_CXXFLAGS_WARN_OFF -= -W0
-        QMAKE_CXXFLAGS += -W3
         QMAKE_LFLAGS += /NODEFAULTLIB:LIBCMT
 
         INCLUDEPATH += $$[QT_INSTALL_HEADERS]/QtZlib
