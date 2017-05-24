@@ -177,11 +177,6 @@ qint64 QZDecompressionStream::size() const
 
 bool QZDecompressionStream::seek(qint64 pos)
 {
-	if (!isOpen())
-	{
-		return false;
-	}
-
 	return seekInternal(pos, &QIODevice::read);
 }
 
@@ -208,11 +203,6 @@ bool QZDecompressionStream::canReadLine() const
 
 qint64 QZDecompressionStream::readData(char *data, qint64 maxlen)
 {
-	if (!mStream->isOpen() || !streamSeekInit())
-	{
-		mHasError = true;
-		setErrorString("Source stream seek failed.");
-	} else
 	if (seekInternal(pos(), &QZDecompressionStream::readInternal))
 	{
 		return readInternal(data, maxlen);
@@ -264,6 +254,9 @@ bool QZDecompressionStream::initOpen(OpenMode mode)
 bool QZDecompressionStream::seekInternal(
 	qint64 pos, qint64 (QZDecompressionStream::*read)(char *, qint64))
 {
+	if (!isOpen())
+		return false;
+
 	qint64 currentPos = static_cast<qint64>(mZStream.total_out);
 	currentPos -= pos;
 	if (currentPos > 0)
@@ -307,6 +300,11 @@ bool QZDecompressionStream::seekInternal(
 
 qint64 QZDecompressionStream::readInternal(char *data, qint64 maxlen)
 {
+	if (!isOpen() || !streamSeekInit())
+	{
+		return 0;
+	}
+
 	mZStream.next_out = reinterpret_cast<Bytef *>(data);
 
 	qint64 count = maxlen;
