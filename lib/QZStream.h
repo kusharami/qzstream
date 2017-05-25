@@ -67,7 +67,6 @@ public:
 	virtual void close() override;
 
 	virtual qint64 size() const override;
-	virtual bool seek(qint64 pos) override;
 
 	virtual qint64 bytesAvailable() const override;
 
@@ -79,8 +78,7 @@ protected:
 	virtual bool initOpen(OpenMode mode);
 
 private:
-	bool seekInternal(qint64 pos,
-					  qint64 (QZDecompressionStream::*read)(char *, qint64));
+	bool seekInternal(qint64 pos);
 	qint64 readInternal(char *data, qint64 maxlen);
 	virtual qint64 bytesToWrite() const override;
 	virtual qint64 writeData(const char *, qint64) override;

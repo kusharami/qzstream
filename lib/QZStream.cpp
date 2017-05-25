@@ -175,11 +175,6 @@ qint64 QZDecompressionStream::size() const
 	return bytesAvailable();
 }
 
-bool QZDecompressionStream::seek(qint64 pos)
-{
-	return seekInternal(pos, &QIODevice::read);
-}
-
 qint64 QZDecompressionStream::bytesAvailable() const
 {
 	if (!isOpen())
@@ -203,7 +198,7 @@ bool QZDecompressionStream::canReadLine() const
 
 qint64 QZDecompressionStream::readData(char *data, qint64 maxlen)
 {
-	if (seekInternal(pos(), &QZDecompressionStream::readInternal))
+	if (seekInternal(pos()))
 	{
 		return readInternal(data, maxlen);
 	}
@@ -251,8 +246,7 @@ bool QZDecompressionStream::initOpen(OpenMode mode)
 	return true;
 }
 
-bool QZDecompressionStream::seekInternal(
-	qint64 pos, qint64 (QZDecompressionStream::*read)(char *, qint64))
+bool QZDecompressionStream::seekInternal(qint64 pos)
 {
 	if (!isOpen())
 		return false;
@@ -287,7 +281,7 @@ bool QZDecompressionStream::seekInternal(
 
 		auto blockSize = qMin(pos, qint64(sizeof(buf)));
 
-		auto readBytes = (this->*read)(buf, blockSize);
+		auto readBytes = readInternal(buf, blockSize);
 		if (readBytes != blockSize)
 		{
 			return false;
