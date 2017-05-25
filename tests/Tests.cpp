@@ -42,10 +42,13 @@ void Tests::test()
 		QVERIFY(compress->isReadable() == buffer.isReadable());
 		QVERIFY(!compress->isReadable());
 		QVERIFY(compress->isWritable());
-		QVERIFY(compress->size() == 0);
-		QVERIFY(compress->write(sourceBytes) == sourceBytes.size());
-		QVERIFY(compress->size() == sourceBytes.size());
+		QCOMPARE(compress->size(), 0);
+		QCOMPARE(compress->write(sourceBytes), sourceBytes.size());
+		QCOMPARE(compress->size(), sourceBytes.size());
+		QRegularExpression seekRE("QIODevice::seek");
+		QTest::ignoreMessage(QtWarningMsg, seekRE);
 		QVERIFY(!compress->seek(sourceBytes.size()));
+		QTest::ignoreMessage(QtWarningMsg, seekRE);
 		QVERIFY(!compress->seek(0));
 		compress->close();
 		QVERIFY(!compress->hasError());
@@ -64,24 +67,26 @@ void Tests::test()
 		QVERIFY(decompress->isReadable() == buffer.isReadable());
 		QVERIFY(decompress->isReadable());
 		QVERIFY(!decompress->isWritable());
-		QVERIFY(decompress->pos() == 0);
-		QVERIFY(decompress->peek(sourceBytes.size()) == sourceBytes);
-		QVERIFY(decompress->pos() == 0);
-		QVERIFY(decompress->readAll() == sourceBytes);
-		QVERIFY(decompress->pos() == sourceBytes.size());
+		QCOMPARE(decompress->pos(), 0);
+		QCOMPARE(decompress->peek(sourceBytes.size()), sourceBytes);
+		QCOMPARE(decompress->pos(), 0);
+		QCOMPARE(decompress->readAll(), sourceBytes);
+		QCOMPARE(decompress->pos(), sourceBytes.size());
 		QVERIFY(decompress->seek(1));
-		QVERIFY(decompress->pos() == 1);
+		QCOMPARE(decompress->pos(), 1);
 		auto uncompressed = decompress->readAll();
-		QVERIFY(
-			0 == memcmp(
-				uncompressed.data(),
-				&sourceBytes.data()[1],
-				uncompressed.size()));
+		QCOMPARE(
+			uncompressed,
+			QByteArray::fromRawData(
+				&sourceBytes.data()[1], uncompressed.size()));
 
-		QVERIFY(decompress->pos() == sourceBytes.size());
-		QVERIFY(decompress->seek(sourceBytes.size()));
-		QVERIFY(!decompress->seek(sourceBytes.size() + 1));
-		QVERIFY(decompress->pos() == sourceBytes.size());
+		QCOMPARE(decompress->pos(), sourceBytes.size());
+		QVERIFY(decompress->seek(0));
+		QVERIFY(decompress->seek(sourceBytes.size() + 1));
+		QCOMPARE(decompress->pos(), sourceBytes.size() + 1);
+		QRegularExpression readRE("QIODevice::read");
+		QTest::ignoreMessage(QtWarningMsg, readRE);
+		QVERIFY(decompress->readAll().isEmpty());
 
 		decompress->close();
 		QVERIFY(!decompress->hasError());

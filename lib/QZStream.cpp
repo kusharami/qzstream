@@ -251,6 +251,9 @@ bool QZDecompressionStream::seekInternal(qint64 pos)
 	if (!isOpen())
 		return false;
 
+	if (isSequential())
+		return true;
+
 	qint64 currentPos = static_cast<qint64>(mZStream.total_out);
 	currentPos -= pos;
 	if (currentPos > 0)
@@ -264,12 +267,6 @@ bool QZDecompressionStream::seekInternal(qint64 pos)
 
 		mZStream.next_in = mBuffer;
 		mZStream.avail_in = 0;
-
-		if (this->pos() != 0 && !QZStreamBase::seek(0))
-		{
-			mHasError = true;
-			return false;
-		}
 	} else
 	{
 		pos = -currentPos;
