@@ -69,6 +69,8 @@ bool QZStreamBase::openStream(OpenMode mode)
 			setErrorString("Different open modes.");
 			return false;
 		}
+
+		return true;
 	}
 
 	if (mStream->open(mode))
