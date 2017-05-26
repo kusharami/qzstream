@@ -27,10 +27,12 @@ INCLUDEPATH += ../lib
 
 include(../QZStream.pri)
 
-CONFIG(debug, debug|release) {
-    CONFIG_NAME = debug
-} else {
-    CONFIG_NAME = release
+win32 {
+    CONFIG(debug, debug|release) {
+        CONFIG_NAME = debug
+    } else {
+        CONFIG_NAME = release
+    }
 }
 
 LIBS += -L$$OUT_PWD/../lib/$$CONFIG_NAME
