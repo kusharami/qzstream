@@ -3,21 +3,16 @@
 QZStreamBase::QZStreamBase(QObject *parent)
 	: QIODevice(parent)
 	, mStream(nullptr)
-	, mStreamPosition(0)
 	, mStreamOriginalPosition(0)
+	, mStreamPosition(0)
 	, mHasError(false)
 {
 	memset(&mZStream, 0, sizeof(mZStream));
 }
 
 QZStreamBase::QZStreamBase(QIODevice *stream, QObject *parent)
-	: QIODevice(parent)
-	, mStream(nullptr)
-	, mStreamPosition(0)
-	, mStreamOriginalPosition(0)
-	, mHasError(false)
+	: QZStreamBase(parent)
 {
-	memset(&mZStream, 0, sizeof(mZStream));
 	setStream(stream);
 }
 
