@@ -1,4 +1,4 @@
-VERSION = 1.0.0
+VERSION = 1.0.2
 
 QT -= gui
 
@@ -26,6 +26,14 @@ HEADERS += \
 SOURCES += \
     QZStream.cpp \
     QCCZStream.cpp
+
+CONFIG(debug, debug|release) {
+    CONFIG_DIR = Debug
+} else {
+    CONFIG_DIR = Release
+}
+
+DESTDIR = $$_PRO_FILE_PWD_/../build/$$CONFIG_DIR
 
 include(../QZStream.pri)
 
