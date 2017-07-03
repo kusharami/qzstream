@@ -27,13 +27,11 @@ INCLUDEPATH += ../lib
 
 include(../QZStream.pri)
 
-win32 {
-    CONFIG(debug, debug|release) {
-        CONFIG_NAME = debug
-    } else {
-        CONFIG_NAME = release
-    }
+CONFIG(debug, debug|release) {
+    CONFIG_DIR = Debug
+} else {
+    CONFIG_DIR = Release
 }
 
-LIBS += -L$$OUT_PWD/../lib/$$CONFIG_NAME
+LIBS += -L$$_PRO_FILE_PWD_/../build/$$CONFIG_DIR
 LIBS += -lQZStream

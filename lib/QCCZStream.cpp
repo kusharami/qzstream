@@ -3,10 +3,7 @@
 #include "QZStream.h"
 
 #include <QBuffer>
-
-#ifdef Q_OS_WIN
-#include <WinSock2.h>
-#endif
+#include <QDataStream>
 
 static const char CCZ_Signature[] = "CCZ!";
 enum
@@ -18,7 +15,7 @@ enum
 // Format header
 struct CCZHeader
 {
-	quint8 sig[CCZ_SIGNATURE_SIZE];	// signature. Should be 'CCZ!' 4 bytes
+	char sig[CCZ_SIGNATURE_SIZE];	// signature. Should be 'CCZ!' 4 bytes
 	quint16 compression_type;	// should 0 (See below for supported formats)
 	quint16 version;	// should be 2
 	quint32 reserved;	// Reserverd for users.
@@ -61,21 +58,39 @@ bool QCCZDecompressionStream::initOpen(OpenMode mode)
 {
 	if (QZDecompressionStream::initOpen(mode))
 	{
-		CCZHeader header;
-		if (mStream->seek(mStreamPosition) &&
-			mStream->read(
-				reinterpret_cast<char *>(&header),
-				sizeof(CCZHeader)) == sizeof(CCZHeader) &&
-			0 == memcmp(header.sig, CCZ_Signature, CCZ_SIGNATURE_SIZE) &&
-			ntohs(header.version) == CCZ_VERSION &&
-			ntohs(header.compression_type) == CCZ_COMPRESSION_ZLIB)
+		do
 		{
-			setUncompressedSize(ntohl(header.len));
+			if (!streamSeekInit())
+				break;
+
+			QDataStream stream(mStream);
+			stream.setByteOrder(QDataStream::BigEndian);
+			CCZHeader header;
+			stream.readRawData(header.sig, CCZ_SIGNATURE_SIZE);
+			if (0 != memcmp(header.sig, CCZ_Signature, CCZ_SIGNATURE_SIZE))
+				break;
+
+			stream >> header.compression_type;
+
+			if (CCZ_COMPRESSION_ZLIB != header.compression_type)
+				break;
+
+			stream >> header.version;
+			if (CCZ_VERSION != header.version)
+				break;
+
+			stream >> header.reserved;
+			stream >> header.len;
+
+			if (stream.status() != QDataStream::Ok)
+				break;
+
+			setUncompressedSize(header.len);
 			mStreamPosition += sizeof(CCZHeader);
 			mStreamOriginalPosition = mStreamPosition;
 
 			return true;
-		}
+		} while (true);
 
 		mHasError = true;
 		setErrorString("No CCZ header.");
@@ -141,22 +156,42 @@ void QCCZCompressionStream::close()
 	Q_ASSERT(nullptr != mTarget);
 
 	mStream = mTarget;
+	mStreamPosition = mSavePosition;
 	mStreamOriginalPosition = mSavePosition;
 	if (!mHasError)
 	{
-		CCZHeader header;
-		memcpy(header.sig, CCZ_Signature, CCZ_SIGNATURE_SIZE);
-		header.version = htons(CCZ_VERSION);
-		header.compression_type = htons(CCZ_COMPRESSION_ZLIB);
-		header.reserved = 0;
-		header.len = htonl(mZStream.total_in);
+		bool result = false;
+		do
+		{
+			if (!streamSeekInit())
+				break;
 
-		mStreamPosition = mStreamOriginalPosition;
-		if (!streamSeekInit() ||
-			mStream->write(
-				reinterpret_cast<const char *>(&header),
-				sizeof(header)) != sizeof(header) ||
-			mStream->write(*mBytes) != mBytes->size())
+			{
+				QDataStream stream(mStream);
+				stream.setByteOrder(QDataStream::BigEndian);
+
+				CCZHeader header;
+				stream.writeRawData(CCZ_Signature, CCZ_SIGNATURE_SIZE);
+				header.compression_type = CCZ_COMPRESSION_ZLIB;
+				stream << header.compression_type;
+				header.version = CCZ_VERSION;
+				stream << header.version;
+				header.reserved = 0;
+				stream << header.reserved;
+				header.len = mZStream.total_in;
+				stream << header.len;
+
+				if (stream.status() != QDataStream::Ok)
+					break;
+			}
+
+			if (mStream->write(*mBytes) != mBytes->size())
+				break;
+
+			result = true;
+		} while (false);
+
+		if (!result)
 		{
 			mHasError = true;
 			setErrorString("Target stream write failed.");
