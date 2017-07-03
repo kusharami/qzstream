@@ -60,7 +60,7 @@ bool QCCZDecompressionStream::initOpen(OpenMode mode)
 	{
 		do
 		{
-			if (!mStream->seek(mStreamPosition))
+			if (!streamSeekInit())
 				break;
 
 			QDataStream stream(mStream);
