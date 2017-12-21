@@ -345,7 +345,6 @@ QZCompressionStream::QZCompressionStream(QObject *parent)
 
 QZCompressionStream::QZCompressionStream(
 	QIODevice *target, int compressionLevel, QObject *parent)
-	//
 	: QZStreamBase(target, parent)
 	, mCompressionLevel(compressionLevel)
 {

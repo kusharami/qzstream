@@ -27,9 +27,7 @@ class QCCZCompressionStream final : public QZCompressionStream
 
 public:
 	explicit QCCZCompressionStream(QObject *parent = nullptr);
-	explicit QCCZCompressionStream(
-		QIODevice *target,
-		int compressionLevel = -1,
+	explicit QCCZCompressionStream(QIODevice *target, int compressionLevel = -1,
 		QObject *parent = nullptr);
 
 	virtual ~QCCZCompressionStream() override;
