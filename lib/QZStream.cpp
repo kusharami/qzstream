@@ -58,7 +58,7 @@ bool QZStreamBase::openStream(OpenMode mode)
 {
 	if (mStream->isOpen())
 	{
-		if (mStream->openMode() != mode)
+		if ((mStream->openMode() & mode) != mode)
 		{
 			mHasError = true;
 			setErrorString("Different open modes.");
@@ -98,12 +98,10 @@ QZDecompressionStream::QZDecompressionStream(QObject *parent)
 	: QZStreamBase(parent)
 	, mUncompressedSize(-1)
 {
-
 }
 
 QZDecompressionStream::QZDecompressionStream(
 	QIODevice *source, qint64 uncompressedSize, QObject *parent)
-//
 	: QZStreamBase(source, parent)
 	, mUncompressedSize(uncompressedSize)
 {
@@ -128,11 +126,9 @@ bool QZDecompressionStream::open(OpenMode mode)
 		Q_UNUSED(openOk);
 
 		QObject::connect(
-			mStream, &QIODevice::readyRead,
-			this, &QIODevice::readyRead);
-		QObject::connect(
-			mStream, &QIODevice::aboutToClose,
-			this, &QZDecompressionStream::close);
+			mStream, &QIODevice::readyRead, this, &QIODevice::readyRead);
+		QObject::connect(mStream, &QIODevice::aboutToClose, this,
+			&QZDecompressionStream::close);
 
 		return true;
 	}
@@ -148,11 +144,9 @@ void QZDecompressionStream::close()
 	}
 
 	QObject::disconnect(
-		mStream, &QIODevice::readyRead,
-		this, &QIODevice::readyRead);
+		mStream, &QIODevice::readyRead, this, &QIODevice::readyRead);
 	QObject::disconnect(
-		mStream, &QIODevice::aboutToClose,
-		this, &QZDecompressionStream::close);
+		mStream, &QIODevice::aboutToClose, this, &QZDecompressionStream::close);
 
 	QZStreamBase::close();
 
@@ -312,10 +306,8 @@ qint64 QZDecompressionStream::readInternal(char *data, qint64 maxlen)
 		{
 			if (mZStream.avail_in == 0)
 			{
-				mZStream.avail_in = static_cast<uInt>(
-						mStream->read(
-							reinterpret_cast<char *>(mBuffer),
-							BUFFER_SIZE));
+				mZStream.avail_in = static_cast<uInt>(mStream->read(
+					reinterpret_cast<char *>(mBuffer), BUFFER_SIZE));
 
 				if (mZStream.avail_in == 0)
 				{
@@ -349,12 +341,11 @@ QZCompressionStream::QZCompressionStream(QObject *parent)
 	: QZStreamBase(parent)
 	, mCompressionLevel(Z_DEFAULT_COMPRESSION)
 {
-
 }
 
 QZCompressionStream::QZCompressionStream(
 	QIODevice *target, int compressionLevel, QObject *parent)
-//
+	//
 	: QZStreamBase(target, parent)
 	, mCompressionLevel(compressionLevel)
 {
@@ -379,9 +370,8 @@ bool QZCompressionStream::open(OpenMode mode)
 		Q_ASSERT(openOk);
 		Q_UNUSED(openOk);
 
-		QObject::connect(
-			mStream, &QIODevice::aboutToClose,
-			this, &QZCompressionStream::close);
+		QObject::connect(mStream, &QIODevice::aboutToClose, this,
+			&QZCompressionStream::close);
 		return true;
 	}
 
@@ -396,8 +386,7 @@ void QZCompressionStream::close()
 	}
 
 	QObject::disconnect(
-		mStream, &QIODevice::aboutToClose,
-		this, &QZCompressionStream::close);
+		mStream, &QIODevice::aboutToClose, this, &QZCompressionStream::close);
 
 	QZStreamBase::close();
 
