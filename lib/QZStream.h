@@ -52,10 +52,8 @@ class QZDecompressionStream : public QZStreamBase
 
 public:
 	explicit QZDecompressionStream(QObject *parent = nullptr);
-	explicit QZDecompressionStream(
-		QIODevice *source,
-		qint64 uncompressedSize = -1,
-		QObject *parent = nullptr);
+	explicit QZDecompressionStream(QIODevice *source,
+		qint64 uncompressedSize = -1, QObject *parent = nullptr);
 
 	void setUncompressedSize(qint64 value);
 
@@ -98,8 +96,7 @@ class QZCompressionStream : public QZStreamBase
 
 public:
 	explicit QZCompressionStream(QObject *parent = nullptr);
-	explicit QZCompressionStream(
-		QIODevice *target,
+	explicit QZCompressionStream(QIODevice *target,
 		int compressionLevel = Z_DEFAULT_COMPRESSION,
 		QObject *parent = nullptr);
 

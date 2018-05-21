@@ -15,11 +15,11 @@ enum
 // Format header
 struct CCZHeader
 {
-	char sig[CCZ_SIGNATURE_SIZE];	// signature. Should be 'CCZ!' 4 bytes
-	quint16 compression_type;	// should 0 (See below for supported formats)
-	quint16 version;	// should be 2
-	quint32 reserved;	// Reserverd for users.
-	quint32 len;	// size of the uncompressed file
+	char sig[CCZ_SIGNATURE_SIZE]; // signature. Should be 'CCZ!' 4 bytes
+	quint16 compression_type; // should 0 (See below for supported formats)
+	quint16 version; // should be 2
+	quint32 reserved; // Reserverd for users.
+	quint32 len; // size of the uncompressed file
 };
 
 enum
@@ -30,7 +30,6 @@ enum
 QCCZDecompressionStream::QCCZDecompressionStream(QObject *parent)
 	: QZDecompressionStream(parent)
 {
-
 }
 
 QCCZDecompressionStream::QCCZDecompressionStream(
@@ -110,7 +109,6 @@ QCCZCompressionStream::QCCZCompressionStream(QObject *parent)
 
 QCCZCompressionStream::QCCZCompressionStream(
 	QIODevice *target, int compressionLevel, QObject *parent)
-//
 	: QZCompressionStream(target, compressionLevel, parent)
 	, mBytes(nullptr)
 	, mBuffer(nullptr)
