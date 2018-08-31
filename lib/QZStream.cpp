@@ -287,7 +287,7 @@ qint64 QZDecompressionStream::readInternal(char *data, qint64 maxlen)
 		return 0;
 	}
 
-	mZStream.next_out = reinterpret_cast<Bytef *>(data);
+	mZStream.next_out = reinterpret_cast<decltype(mZStream.next_out)>(data);
 
 	qint64 count = maxlen;
 	auto blockSize = std::numeric_limits<decltype(mZStream.avail_out)>::max();
@@ -442,8 +442,7 @@ qint64 QZCompressionStream::writeData(const char *data, qint64 maxlen)
 	qint64 count = maxlen;
 	auto blockSize = std::numeric_limits<decltype(mZStream.avail_in)>::max();
 
-	mZStream.next_in =
-		const_cast<Bytef *>(reinterpret_cast<const Bytef *>(data));
+	mZStream.next_in = reinterpret_cast<decltype(mZStream.next_in)>(data);
 
 	bool run = true;
 	while (run && count > 0)
