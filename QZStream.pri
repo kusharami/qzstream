@@ -5,3 +5,5 @@ unix|win32-g++ {
         INCLUDEPATH += $$[QT_INSTALL_HEADERS]/QtZlib
     }
 }
+
+DEFINES += ZLIB_CONST
