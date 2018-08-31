@@ -37,7 +37,7 @@ public:
 
 private:
 	QByteArray *mBytes;
-	QBuffer *mBuffer;
+	QBuffer *mCCZBuffer;
 	QIODevice *mTarget;
 
 	qint64 mSavePosition;

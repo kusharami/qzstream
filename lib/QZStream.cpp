@@ -290,14 +290,14 @@ qint64 QZDecompressionStream::readInternal(char *data, qint64 maxlen)
 	mZStream.next_out = reinterpret_cast<Bytef *>(data);
 
 	qint64 count = maxlen;
-	quint32 blockSize = std::numeric_limits<quint32>::max();
+	auto blockSize = std::numeric_limits<decltype(mZStream.avail_out)>::max();
 	bool run = true;
 
 	while (run && count > 0)
 	{
 		if (count < blockSize)
 		{
-			blockSize = static_cast<quint32>(count);
+			blockSize = static_cast<decltype(blockSize)>(count);
 		}
 
 		mZStream.avail_out = blockSize;
@@ -306,8 +306,9 @@ qint64 QZDecompressionStream::readInternal(char *data, qint64 maxlen)
 		{
 			if (mZStream.avail_in == 0)
 			{
-				mZStream.avail_in = static_cast<uInt>(mStream->read(
-					reinterpret_cast<char *>(mBuffer), BUFFER_SIZE));
+				mZStream.avail_in =
+					static_cast<decltype(mZStream.avail_in)>(mStream->read(
+						reinterpret_cast<char *>(mBuffer), BUFFER_SIZE));
 
 				if (mZStream.avail_in == 0)
 				{
@@ -334,6 +335,7 @@ qint64 QZDecompressionStream::readInternal(char *data, qint64 maxlen)
 
 qint64 QZDecompressionStream::writeData(const char *, qint64)
 {
+	qWarning("QZDecompressionStream is read only!");
 	return 0;
 }
 
@@ -438,16 +440,17 @@ qint64 QZCompressionStream::writeData(const char *data, qint64 maxlen)
 	}
 
 	qint64 count = maxlen;
-	quint32 blockSize = std::numeric_limits<quint32>::max();
+	auto blockSize = std::numeric_limits<decltype(mZStream.avail_in)>::max();
 
-	mZStream.next_in = (Bytef *) data;
+	mZStream.next_in =
+		const_cast<Bytef *>(reinterpret_cast<const Bytef *>(data));
 
 	bool run = true;
 	while (run && count > 0)
 	{
 		if (count < blockSize)
 		{
-			blockSize = static_cast<quint32>(count);
+			blockSize = static_cast<decltype(blockSize)>(count);
 		}
 
 		mZStream.avail_in = blockSize;
@@ -524,6 +527,7 @@ bool QZCompressionStream::initOpen(OpenMode mode)
 
 qint64 QZCompressionStream::readData(char *, qint64)
 {
+	qWarning("QZCompressionStream is write only!");
 	return 0;
 }
 

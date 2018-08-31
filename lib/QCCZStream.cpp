@@ -8,7 +8,7 @@
 static const char CCZ_Signature[] = "CCZ!";
 enum
 {
-	CCZ_SIGNATURE_SIZE = 4,
+	CCZ_SIGNATURE_SIZE = sizeof(CCZ_Signature) - 1,
 	CCZ_VERSION = 2
 };
 
@@ -101,7 +101,7 @@ bool QCCZDecompressionStream::initOpen(OpenMode mode)
 QCCZCompressionStream::QCCZCompressionStream(QObject *parent)
 	: QZCompressionStream(parent)
 	, mBytes(nullptr)
-	, mBuffer(nullptr)
+	, mCCZBuffer(nullptr)
 	, mTarget(nullptr)
 	, mSavePosition(0)
 {
@@ -111,7 +111,7 @@ QCCZCompressionStream::QCCZCompressionStream(
 	QIODevice *target, int compressionLevel, QObject *parent)
 	: QZCompressionStream(target, compressionLevel, parent)
 	, mBytes(nullptr)
-	, mBuffer(nullptr)
+	, mCCZBuffer(nullptr)
 	, mTarget(nullptr)
 	, mSavePosition(0)
 {
@@ -130,8 +130,8 @@ bool QCCZCompressionStream::initOpen(OpenMode mode)
 		return false;
 
 	mBytes = new QByteArray;
-	mBuffer = new QBuffer(mBytes);
-	mStream = mBuffer;
+	mCCZBuffer = new QBuffer(mBytes);
+	mStream = mCCZBuffer;
 	mSavePosition = mStreamOriginalPosition;
 	mStreamOriginalPosition = 0;
 
@@ -149,7 +149,7 @@ void QCCZCompressionStream::close()
 
 	QZCompressionStream::close();
 
-	Q_ASSERT(nullptr != mBuffer);
+	Q_ASSERT(nullptr != mCCZBuffer);
 	Q_ASSERT(nullptr != mBytes);
 	Q_ASSERT(nullptr != mTarget);
 
@@ -176,7 +176,7 @@ void QCCZCompressionStream::close()
 				stream << header.version;
 				header.reserved = 0;
 				stream << header.reserved;
-				header.len = mZStream.total_in;
+				header.len = quint32(mZStream.total_in);
 				stream << header.len;
 
 				if (stream.status() != QDataStream::Ok)
@@ -196,8 +196,8 @@ void QCCZCompressionStream::close()
 		}
 	}
 
-	delete mBuffer;
+	delete mCCZBuffer;
 	delete mBytes;
-	mBuffer = nullptr;
+	mCCZBuffer = nullptr;
 	mBytes = nullptr;
 }
