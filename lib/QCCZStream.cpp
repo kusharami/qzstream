@@ -50,7 +50,7 @@ void QCCZDecompressionStream::close()
 
 	QZDecompressionStream::close();
 
-	mStreamOriginalPosition -= sizeof(CCZHeader);
+	mIODeviceOriginalPosition -= sizeof(CCZHeader);
 }
 
 bool QCCZDecompressionStream::initOpen(OpenMode mode)
@@ -59,10 +59,10 @@ bool QCCZDecompressionStream::initOpen(OpenMode mode)
 	{
 		do
 		{
-			if (!streamSeekInit())
+			if (!ioDeviceSeekInit())
 				break;
 
-			QDataStream stream(mStream);
+			QDataStream stream(mIODevice);
 			stream.setByteOrder(QDataStream::BigEndian);
 			CCZHeader header;
 			stream.readRawData(header.sig, CCZ_SIGNATURE_SIZE);
@@ -85,14 +85,15 @@ bool QCCZDecompressionStream::initOpen(OpenMode mode)
 				break;
 
 			setUncompressedSize(header.len);
-			mStreamPosition += sizeof(CCZHeader);
-			mStreamOriginalPosition = mStreamPosition;
+
+			mIODevicePosition += sizeof(CCZHeader);
+			mIODeviceOriginalPosition = mIODevicePosition;
 
 			return true;
 		} while (true);
 
 		mHasError = true;
-		setErrorString("No CCZ header.");
+		setErrorString("Bad CCZ header.");
 	}
 
 	return false;
@@ -125,15 +126,15 @@ QCCZCompressionStream::~QCCZCompressionStream()
 
 bool QCCZCompressionStream::initOpen(OpenMode mode)
 {
-	mTarget = mStream;
+	mTarget = mIODevice;
 	if (!QZCompressionStream::initOpen(mode))
 		return false;
 
 	mBytes = new QByteArray;
 	mCCZBuffer = new QBuffer(mBytes);
-	mStream = mCCZBuffer;
-	mSavePosition = mStreamOriginalPosition;
-	mStreamOriginalPosition = 0;
+	mIODevice = mCCZBuffer;
+	mSavePosition = mIODeviceOriginalPosition;
+	mIODeviceOriginalPosition = 0;
 
 	bool bufferOpenOk = QZCompressionStream::initOpen(mode);
 	Q_ASSERT(bufferOpenOk);
@@ -153,19 +154,22 @@ void QCCZCompressionStream::close()
 	Q_ASSERT(nullptr != mBytes);
 	Q_ASSERT(nullptr != mTarget);
 
-	mStream = mTarget;
-	mStreamPosition = mSavePosition;
-	mStreamOriginalPosition = mSavePosition;
+	mIODevice = mTarget;
+	mIODevicePosition = mSavePosition;
+	mIODeviceOriginalPosition = mSavePosition;
 	if (!mHasError)
 	{
 		bool result = false;
 		do
 		{
-			if (!streamSeekInit())
+			if (!ioDeviceSeekInit())
+				break;
+
+			if (mZStream.total_in > std::numeric_limits<quint32>::max())
 				break;
 
 			{
-				QDataStream stream(mStream);
+				QDataStream stream(mIODevice);
 				stream.setByteOrder(QDataStream::BigEndian);
 
 				CCZHeader header;
@@ -183,7 +187,7 @@ void QCCZCompressionStream::close()
 					break;
 			}
 
-			if (mStream->write(*mBytes) != mBytes->size())
+			if (mIODevice->write(*mBytes) != mBytes->size())
 				break;
 
 			result = true;
