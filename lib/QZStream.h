@@ -8,7 +8,7 @@ class QZStreamBase : public QIODevice
 {
 public:
 	inline QIODevice *ioDevice() const;
-	void setIODevice(QIODevice *stream);
+	void setIODevice(QIODevice *ioDevice);
 
 	bool hasError() const;
 

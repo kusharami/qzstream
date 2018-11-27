@@ -16,14 +16,14 @@ QZStreamBase::QZStreamBase(QIODevice *stream, QObject *parent)
 	setIODevice(stream);
 }
 
-void QZStreamBase::setIODevice(QIODevice *stream)
+void QZStreamBase::setIODevice(QIODevice *ioDevice)
 {
-	if (stream != mIODevice)
+	if (ioDevice != mIODevice)
 	{
 		close();
 
-		mIODevice = stream;
-		mIODeviceOriginalPosition = stream ? stream->pos() : 0;
+		mIODevice = ioDevice;
+		mIODeviceOriginalPosition = ioDevice ? ioDevice->pos() : 0;
 	}
 }
 
