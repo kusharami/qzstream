@@ -186,7 +186,9 @@ qint64 QZDecompressionStream::bytesAvailable() const
 	if (mUncompressedSize >= 0)
 		return qMax(mUncompressedSize - pos(), qint64(0));
 
-	return 0xFFFFFFFF;
+	if (sizeof(qint64) == sizeof(uLong))
+		return std::numeric_limits<qint64>::max();
+	return qint64(std::numeric_limits<uLong>::max());
 }
 
 bool QZDecompressionStream::atEnd() const
