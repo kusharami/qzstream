@@ -58,6 +58,11 @@ bool QZStreamBase::openIODevice(OpenMode mode)
 {
 	mode &= ~(QIODevice::Text | QIODevice::Unbuffered);
 
+	if (mode & (Append | Truncate))
+	{
+		mode |= WriteOnly;
+	}
+
 	if (mIODevice->isOpen())
 	{
 		if ((mIODevice->openMode() & mode) != mode)
@@ -382,7 +387,8 @@ bool QZCompressionStream::open(OpenMode mode)
 	if (nullptr != mIODevice && initOpen(mode) &&
 		check(deflateInit(&mZStream, mCompressionLevel)))
 	{
-		mode &= ~ReadOnly;
+		mode |= Truncate;
+		mode &= ~(ReadOnly | Append);
 		bool openOk = QZStreamBase::open(mode);
 		Q_ASSERT(openOk);
 		Q_UNUSED(openOk);
