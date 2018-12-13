@@ -474,7 +474,8 @@ qint64 QZCompressionStream::writeData(const char *data, qint64 maxlen)
 	qint64 count = maxlen;
 	auto blockSize = std::numeric_limits<decltype(mZStream.avail_in)>::max();
 
-	mZStream.next_in = reinterpret_cast<decltype(mZStream.next_in)>(data);
+	mZStream.next_in =
+		reinterpret_cast<decltype(mZStream.next_in)>(const_cast<char *>(data));
 
 	bool run = true;
 	while (run && count > 0)
