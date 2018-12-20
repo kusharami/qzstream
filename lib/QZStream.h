@@ -7,7 +7,8 @@
 class QZStreamBase : public QIODevice
 {
 public:
-	void setStream(QIODevice *stream);
+	inline QIODevice *ioDevice() const;
+	void setIODevice(QIODevice *ioDevice);
 
 	bool hasError() const;
 
@@ -21,13 +22,13 @@ protected:
 	bool check(int code);
 
 protected:
-	bool openStream(OpenMode mode);
-	bool streamSeekInit();
+	bool openIODevice(OpenMode mode);
+	bool ioDeviceSeekInit();
 
 protected:
-	QIODevice *mStream;
-	qint64 mStreamOriginalPosition;
-	qint64 mStreamPosition;
+	QIODevice *mIODevice;
+	qint64 mIODeviceOriginalPosition;
+	qint64 mIODevicePosition;
 
 	enum
 	{
@@ -40,6 +41,11 @@ protected:
 
 	bool mHasError;
 };
+
+QIODevice *QZStreamBase::ioDevice() const
+{
+	return mIODevice;
+}
 
 inline bool QZStreamBase::hasError() const
 {
@@ -67,13 +73,11 @@ public:
 	virtual qint64 size() const override;
 
 	virtual qint64 bytesAvailable() const override;
-
-	virtual bool canReadLine() const override;
-
-	virtual qint64 readData(char *data, qint64 maxlen) override;
+	virtual bool atEnd() const override;
 
 protected:
 	virtual bool initOpen(OpenMode mode);
+	virtual qint64 readData(char *data, qint64 maxlen) override;
 
 private:
 	bool seekInternal(qint64 pos);
@@ -111,18 +115,20 @@ public:
 	virtual void close() override;
 
 	virtual qint64 size() const override;
+	virtual bool canReadLine() const override;
 
 	virtual qint64 bytesToWrite() const override;
-	virtual qint64 writeData(const char *data, qint64 maxlen) override;
 
 protected:
 	virtual bool initOpen(OpenMode mode);
+	virtual qint64 writeData(const char *data, qint64 maxlen) override;
 
 private:
 	virtual qint64 readData(char *, qint64) override;
 	virtual qint64 bytesAvailable() const override;
 
 	bool flushBuffer(int size = BUFFER_SIZE);
+	void warnWriteOnly() const;
 
 protected:
 	int mCompressionLevel;

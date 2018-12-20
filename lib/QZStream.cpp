@@ -2,9 +2,9 @@
 
 QZStreamBase::QZStreamBase(QObject *parent)
 	: QIODevice(parent)
-	, mStream(nullptr)
-	, mStreamOriginalPosition(0)
-	, mStreamPosition(0)
+	, mIODevice(nullptr)
+	, mIODeviceOriginalPosition(0)
+	, mIODevicePosition(0)
 	, mHasError(false)
 {
 	memset(&mZStream, 0, sizeof(mZStream));
@@ -13,24 +13,24 @@ QZStreamBase::QZStreamBase(QObject *parent)
 QZStreamBase::QZStreamBase(QIODevice *stream, QObject *parent)
 	: QZStreamBase(parent)
 {
-	setStream(stream);
+	setIODevice(stream);
 }
 
-void QZStreamBase::setStream(QIODevice *stream)
+void QZStreamBase::setIODevice(QIODevice *ioDevice)
 {
-	if (stream != mStream)
+	if (ioDevice != mIODevice)
 	{
 		close();
 
-		mStream = stream;
-		mStreamOriginalPosition = stream ? stream->pos() : 0;
+		mIODevice = ioDevice;
+		mIODeviceOriginalPosition = ioDevice ? ioDevice->pos() : 0;
 	}
 }
 
 bool QZStreamBase::waitForReadyRead(int msecs)
 {
 	if (isReadable())
-		return mStream->waitForReadyRead(msecs);
+		return mIODevice->waitForReadyRead(msecs);
 
 	return false;
 }
@@ -38,7 +38,7 @@ bool QZStreamBase::waitForReadyRead(int msecs)
 bool QZStreamBase::waitForBytesWritten(int msecs)
 {
 	if (isWritable())
-		return mStream->waitForBytesWritten(msecs);
+		return mIODevice->waitForBytesWritten(msecs);
 
 	return false;
 }
@@ -54,11 +54,18 @@ bool QZStreamBase::check(int code)
 	return !mHasError;
 }
 
-bool QZStreamBase::openStream(OpenMode mode)
+bool QZStreamBase::openIODevice(OpenMode mode)
 {
-	if (mStream->isOpen())
+	mode &= ~(QIODevice::Text | QIODevice::Unbuffered);
+
+	if (mode & (Append | Truncate))
 	{
-		if ((mStream->openMode() & mode) != mode)
+		mode |= WriteOnly;
+	}
+
+	if (mIODevice->isOpen())
+	{
+		if ((mIODevice->openMode() & mode) != mode)
 		{
 			mHasError = true;
 			setErrorString("Different open modes.");
@@ -68,11 +75,11 @@ bool QZStreamBase::openStream(OpenMode mode)
 		return true;
 	}
 
-	if (mStream->open(mode))
+	if (mIODevice->open(mode))
 	{
 		if (0 != (mode & (Append | Truncate)))
 		{
-			mStreamOriginalPosition = mStream->pos();
+			mIODeviceOriginalPosition = mIODevice->pos();
 		}
 
 		return true;
@@ -81,13 +88,13 @@ bool QZStreamBase::openStream(OpenMode mode)
 	return false;
 }
 
-bool QZStreamBase::streamSeekInit()
+bool QZStreamBase::ioDeviceSeekInit()
 {
-	if (!mStream->isSequential() && !mStream->seek(mStreamPosition))
+	if (mIODevice->isTextModeEnabled() ||
+		(!mIODevice->isSequential() && !mIODevice->seek(mIODevicePosition)))
 	{
 		mHasError = true;
-		setErrorString("Stream seek failed.");
-
+		setErrorString("IO device seek failed.");
 		return false;
 	}
 
@@ -114,20 +121,22 @@ QZDecompressionStream::~QZDecompressionStream()
 
 bool QZDecompressionStream::isSequential() const
 {
-	return mStream->isSequential();
+	return mIODevice->isSequential();
 }
 
 bool QZDecompressionStream::open(OpenMode mode)
 {
-	if (nullptr != mStream && initOpen(mode) && check(inflateInit(&mZStream)))
+	if (nullptr != mIODevice && initOpen(mode) && check(inflateInit(&mZStream)))
 	{
+		mode |= Unbuffered;
+		mode &= ~(WriteOnly | Truncate | Append);
 		bool openOk = QZStreamBase::open(mode);
 		Q_ASSERT(openOk);
 		Q_UNUSED(openOk);
 
 		QObject::connect(
-			mStream, &QIODevice::readyRead, this, &QIODevice::readyRead);
-		QObject::connect(mStream, &QIODevice::aboutToClose, this,
+			mIODevice, &QIODevice::readyRead, this, &QIODevice::readyRead);
+		QObject::connect(mIODevice, &QIODevice::aboutToClose, this,
 			&QZDecompressionStream::close);
 
 		return true;
@@ -144,14 +153,14 @@ void QZDecompressionStream::close()
 	}
 
 	QObject::disconnect(
-		mStream, &QIODevice::readyRead, this, &QIODevice::readyRead);
-	QObject::disconnect(
-		mStream, &QIODevice::aboutToClose, this, &QZDecompressionStream::close);
+		mIODevice, &QIODevice::readyRead, this, &QIODevice::readyRead);
+	QObject::disconnect(mIODevice, &QIODevice::aboutToClose, this,
+		&QZDecompressionStream::close);
 
 	QZStreamBase::close();
 
-	mStreamPosition -= mZStream.avail_in;
-	streamSeekInit();
+	mIODevicePosition -= mZStream.avail_in;
+	ioDeviceSeekInit();
 	check(inflateEnd(&mZStream));
 }
 
@@ -171,20 +180,25 @@ qint64 QZDecompressionStream::bytesAvailable() const
 	if (!isOpen())
 		return 0;
 
+	if (mHasError)
+		return 0;
+
 	if (mUncompressedSize >= 0)
 		return qMax(mUncompressedSize - pos(), qint64(0));
 
-	return 0xFFFFFFFF;
+	if (sizeof(qint64) == sizeof(uLong))
+		return std::numeric_limits<qint64>::max();
+	return qint64(std::numeric_limits<uLong>::max());
+}
+
+bool QZDecompressionStream::atEnd() const
+{
+	return bytesAvailable() == 0;
 }
 
 qint64 QZDecompressionStream::bytesToWrite() const
 {
 	return 0;
-}
-
-bool QZDecompressionStream::canReadLine() const
-{
-	return false;
 }
 
 qint64 QZDecompressionStream::readData(char *data, qint64 maxlen)
@@ -194,7 +208,7 @@ qint64 QZDecompressionStream::readData(char *data, qint64 maxlen)
 		return readInternal(data, maxlen);
 	}
 
-	return 0;
+	return -1;
 }
 
 bool QZDecompressionStream::initOpen(OpenMode mode)
@@ -207,30 +221,28 @@ bool QZDecompressionStream::initOpen(OpenMode mode)
 		return false;
 	}
 
-	if (!openStream(mode))
+	if (!openIODevice(mode))
 	{
 		return false;
 	}
 
-	if (!mStream->isReadable())
-	{
-		mHasError = true;
-		setErrorString("Source stream is not readable.");
-		return false;
-	}
-
-	if (mStream->isTextModeEnabled())
+	if (!mIODevice->isReadable())
 	{
 		mHasError = true;
-		setErrorString("Source stream is not binary.");
+		setErrorString("Source IO device is not readable.");
 		return false;
 	}
 
-	mode = ReadOnly | Unbuffered;
+	if (mIODevice->isTextModeEnabled())
+	{
+		mHasError = true;
+		setErrorString("Source IO device is not binary.");
+		return false;
+	}
 
 	mHasError = false;
 	setErrorString(QString());
-	mStreamPosition = mStreamOriginalPosition;
+	mIODevicePosition = mIODeviceOriginalPosition;
 	mZStream.next_in = mBuffer;
 	mZStream.avail_in = 0;
 
@@ -254,7 +266,7 @@ bool QZDecompressionStream::seekInternal(qint64 pos)
 			return false;
 		}
 
-		mStreamPosition = mStreamOriginalPosition;
+		mIODevicePosition = mIODeviceOriginalPosition;
 
 		mZStream.next_in = mBuffer;
 		mZStream.avail_in = 0;
@@ -265,7 +277,7 @@ bool QZDecompressionStream::seekInternal(qint64 pos)
 
 	while (pos > 0)
 	{
-		char buf[4098];
+		char buf[4096];
 
 		auto blockSize = qMin(pos, qint64(sizeof(buf)));
 
@@ -282,9 +294,9 @@ bool QZDecompressionStream::seekInternal(qint64 pos)
 
 qint64 QZDecompressionStream::readInternal(char *data, qint64 maxlen)
 {
-	if (!isOpen() || !streamSeekInit())
+	if (!isOpen() || !ioDeviceSeekInit())
 	{
-		return 0;
+		return -1;
 	}
 
 	mZStream.next_out = reinterpret_cast<decltype(mZStream.next_out)>(data);
@@ -306,23 +318,33 @@ qint64 QZDecompressionStream::readInternal(char *data, qint64 maxlen)
 		{
 			if (mZStream.avail_in == 0)
 			{
-				mZStream.avail_in =
-					static_cast<decltype(mZStream.avail_in)>(mStream->read(
-						reinterpret_cast<char *>(mBuffer), BUFFER_SIZE));
+				auto readResult = mIODevice->read(
+					reinterpret_cast<char *>(mBuffer), sizeof(mBuffer));
+				mZStream.avail_in = readResult >= 0
+					? static_cast<decltype(mZStream.avail_in)>(readResult)
+					: 0;
 
-				if (mZStream.avail_in == 0)
+				if (readResult <= 0)
 				{
 					run = false;
+					mUncompressedSize = qint64(mZStream.total_out);
+					if (readResult < 0)
+					{
+						mHasError = true;
+						setErrorString(mIODevice->errorString());
+					}
 					break;
 				}
 
 				mZStream.next_in = mBuffer;
-				mStreamPosition += mZStream.avail_in;
+				mIODevicePosition += mZStream.avail_in;
 			}
 
-			if (run && !check(inflate(&mZStream, Z_NO_FLUSH)))
+			int code = inflate(&mZStream, Z_NO_FLUSH);
+			if (code == Z_STREAM_END || !check(code))
 			{
 				run = false;
+				mUncompressedSize = qint64(mZStream.total_out);
 				break;
 			}
 		}
@@ -336,7 +358,7 @@ qint64 QZDecompressionStream::readInternal(char *data, qint64 maxlen)
 qint64 QZDecompressionStream::writeData(const char *, qint64)
 {
 	qWarning("QZDecompressionStream is read only!");
-	return 0;
+	return -1;
 }
 
 QZCompressionStream::QZCompressionStream(QObject *parent)
@@ -364,14 +386,16 @@ bool QZCompressionStream::isSequential() const
 
 bool QZCompressionStream::open(OpenMode mode)
 {
-	if (nullptr != mStream && initOpen(mode) &&
+	if (nullptr != mIODevice && initOpen(mode) &&
 		check(deflateInit(&mZStream, mCompressionLevel)))
 	{
+		mode |= Truncate;
+		mode &= ~(ReadOnly | Append);
 		bool openOk = QZStreamBase::open(mode);
 		Q_ASSERT(openOk);
 		Q_UNUSED(openOk);
 
-		QObject::connect(mStream, &QIODevice::aboutToClose, this,
+		QObject::connect(mIODevice, &QIODevice::aboutToClose, this,
 			&QZCompressionStream::close);
 		return true;
 	}
@@ -387,22 +411,24 @@ void QZCompressionStream::close()
 	}
 
 	QObject::disconnect(
-		mStream, &QIODevice::aboutToClose, this, &QZCompressionStream::close);
+		mIODevice, &QIODevice::aboutToClose, this, &QZCompressionStream::close);
 
 	QZStreamBase::close();
 
 	mZStream.next_in = Z_NULL;
 	mZStream.avail_in = 0;
-	if (streamSeekInit())
+	if (ioDeviceSeekInit())
 	{
 		while (true)
 		{
 			int result = deflate(&mZStream, Z_FINISH);
-			if (result == Z_STREAM_END || mZStream.avail_out != 0)
-				break;
-
 			if (!check(result))
 				break;
+
+			if (result == Z_STREAM_END)
+				break;
+
+			Q_ASSERT(mZStream.avail_out == 0);
 
 			if (!flushBuffer())
 				break;
@@ -425,6 +451,12 @@ qint64 QZCompressionStream::size() const
 	return isOpen() ? mZStream.total_in : 0;
 }
 
+bool QZCompressionStream::canReadLine() const
+{
+	qWarning("QZCompressionStream is write only!");
+	return false;
+}
+
 qint64 QZCompressionStream::bytesToWrite() const
 {
 	return isOpen() ? mZStream.avail_out : 0;
@@ -432,17 +464,18 @@ qint64 QZCompressionStream::bytesToWrite() const
 
 qint64 QZCompressionStream::writeData(const char *data, qint64 maxlen)
 {
-	if (!mStream->isOpen() || !streamSeekInit())
+	if (!mIODevice->isOpen() || !ioDeviceSeekInit())
 	{
 		mHasError = true;
-		setErrorString("Target stream seek failed.");
-		return 0;
+		setErrorString("Target IO device seek failed.");
+		return -1;
 	}
 
 	qint64 count = maxlen;
 	auto blockSize = std::numeric_limits<decltype(mZStream.avail_in)>::max();
 
-	mZStream.next_in = reinterpret_cast<decltype(mZStream.next_in)>(data);
+	mZStream.next_in =
+		reinterpret_cast<decltype(mZStream.next_in)>(const_cast<char *>(data));
 
 	bool run = true;
 	while (run && count > 0)
@@ -469,7 +502,7 @@ qint64 QZCompressionStream::writeData(const char *data, qint64 maxlen)
 					break;
 				}
 
-				mStreamPosition += sizeof(mBuffer);
+				mIODevicePosition += sizeof(mBuffer);
 				mZStream.next_out = mBuffer;
 				mZStream.avail_out = sizeof(mBuffer);
 			}
@@ -484,7 +517,7 @@ qint64 QZCompressionStream::writeData(const char *data, qint64 maxlen)
 bool QZCompressionStream::initOpen(OpenMode mode)
 {
 	Q_ASSERT(!isOpen());
-	Q_ASSERT(nullptr != mStream);
+	Q_ASSERT(nullptr != mIODevice);
 
 	if (0 == (mode & WriteOnly))
 	{
@@ -493,31 +526,29 @@ bool QZCompressionStream::initOpen(OpenMode mode)
 		return false;
 	}
 
-	if (!openStream(mode))
+	if (!openIODevice(mode))
 	{
 		return false;
 	}
 
-	if (!mStream->isWritable())
-	{
-		mHasError = true;
-		setErrorString("Target stream is not writable.");
-		return false;
-	}
-
-	if (mStream->isTextModeEnabled())
+	if (!mIODevice->isWritable())
 	{
 		mHasError = true;
-		setErrorString("Target stream is not binary.");
+		setErrorString("Target IO device is not writable.");
 		return false;
 	}
 
-	mode = WriteOnly | Unbuffered;
+	if (mIODevice->isTextModeEnabled())
+	{
+		mHasError = true;
+		setErrorString("Target IO device is not binary.");
+		return false;
+	}
 
 	mHasError = false;
 	setErrorString(QString());
 
-	mStreamPosition = mStreamOriginalPosition;
+	mIODevicePosition = mIODeviceOriginalPosition;
 	mZStream.next_out = mBuffer;
 	mZStream.avail_out = sizeof(mBuffer);
 
@@ -526,24 +557,30 @@ bool QZCompressionStream::initOpen(OpenMode mode)
 
 qint64 QZCompressionStream::readData(char *, qint64)
 {
-	qWarning("QZCompressionStream is write only!");
-	return 0;
+	warnWriteOnly();
+	return -1;
 }
 
 qint64 QZCompressionStream::bytesAvailable() const
 {
-	return 0;
+	warnWriteOnly();
+	return -1;
 }
 
 bool QZCompressionStream::flushBuffer(int size)
 {
-	Q_ASSERT(mStream->isOpen());
-	if (mStream->write(reinterpret_cast<char *>(mBuffer), size) != size)
+	Q_ASSERT(mIODevice->isOpen());
+	if (mIODevice->write(reinterpret_cast<char *>(mBuffer), size) != size)
 	{
 		mHasError = true;
-		setErrorString("Target stream write failed.");
+		setErrorString(mIODevice->errorString());
 		return false;
 	}
 
 	return true;
+}
+
+void QZCompressionStream::warnWriteOnly() const
+{
+	qWarning("QZCompressionStream is write only!");
 }
