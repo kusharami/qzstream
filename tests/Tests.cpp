@@ -6,10 +6,12 @@
 #undef compress
 
 #include <QBuffer>
+#include <QImageReader>
+#include <QImageWriter>
+#include <QTemporaryDir>
 #include <QtTest>
 
-#define QADD_COLUMN(type, name) \
-	QTest::addColumn<type>(#name);
+#define QADD_COLUMN(type, name) QTest::addColumn<type>(#name);
 
 void Tests::test_data()
 {
@@ -34,9 +36,9 @@ void Tests::test()
 
 	{
 		QBuffer buffer(&bytes);
-		auto compress = newCompressor(compressionType);
+		QScopedPointer<QZStream> compress(newCompressor(compressionType));
 		QVERIFY(nullptr != compress);
-		compress->setStream(&buffer);
+		compress->setIODevice(&buffer);
 		QVERIFY(compress->open(QIODevice::WriteOnly));
 		QVERIFY(compress->isWritable() == buffer.isWritable());
 		QVERIFY(compress->isReadable() == buffer.isReadable());
@@ -53,15 +55,14 @@ void Tests::test()
 		compress->close();
 		QVERIFY(!compress->hasError());
 		QVERIFY(buffer.isOpen());
-		delete compress;
 	}
 
 	{
 		QBuffer buffer(&bytes);
-		auto decompress = newDecompressor(
-				compressionType, sourceBytes.size());
+		QScopedPointer<QZStream> decompress(
+			newDecompressor(compressionType, sourceBytes.size()));
 		QVERIFY(nullptr != decompress);
-		decompress->setStream(&buffer);
+		decompress->setIODevice(&buffer);
 		QVERIFY(decompress->open(QIODevice::ReadOnly));
 		QVERIFY(decompress->isWritable() == buffer.isWritable());
 		QVERIFY(decompress->isReadable() == buffer.isReadable());
@@ -75,8 +76,7 @@ void Tests::test()
 		QVERIFY(decompress->seek(1));
 		QCOMPARE(decompress->pos(), 1);
 		auto uncompressed = decompress->readAll();
-		QCOMPARE(
-			uncompressed,
+		QCOMPARE(uncompressed,
 			QByteArray::fromRawData(
 				&sourceBytes.data()[1], uncompressed.size()));
 
@@ -91,34 +91,104 @@ void Tests::test()
 		decompress->close();
 		QVERIFY(!decompress->hasError());
 		QVERIFY(buffer.isOpen());
-		delete decompress;
 	}
 }
 
-QZStreamBase *Tests::newCompressor(int type)
+QZStream *Tests::newCompressor(int type)
 {
 	switch (type)
 	{
 		case COMPRESS_Z:
-			return new QZCompressionStream(nullptr, Z_BEST_COMPRESSION);
+			return new QZCompressor(nullptr, Z_BEST_COMPRESSION);
 
 		case COMPRESS_CCZ:
-			return new QCCZCompressionStream(nullptr, Z_BEST_COMPRESSION);
+			return new QCCZCompressor(nullptr, Z_BEST_COMPRESSION);
 	}
 
 	return nullptr;
 }
 
-QZStreamBase *Tests::newDecompressor(int type, int uncompressedSize)
+QZStream *Tests::newDecompressor(int type, int uncompressedSize)
 {
 	switch (type)
 	{
 		case COMPRESS_Z:
-			return new QZDecompressionStream(nullptr, uncompressedSize);
+			return new QZDecompressor(nullptr, uncompressedSize);
 
 		case COMPRESS_CCZ:
-			return new QCCZDecompressionStream;
+			return new QCCZDecompressor;
 	}
 
 	return nullptr;
+}
+
+void Tests::testImageFormatPlugin()
+{
+	QList<QList<QByteArray>> supported;
+	supported.append(QImageReader::supportedImageFormats());
+	supported.append(QImageWriter::supportedImageFormats());
+
+	std::set<QByteArray> allFormats;
+	for (auto &s : supported)
+	{
+		QVERIFY(s.indexOf("ccz") >= 0);
+		allFormats.insert(s.begin(), s.end());
+	}
+
+	{
+		QImageWriter writer;
+		writer.setFormat("ccz");
+		for (auto &format : allFormats)
+		{
+			if (format == "ccz")
+				continue;
+			QVERIFY(writer.supportedSubTypes().indexOf(format) >= 0);
+		}
+	}
+
+	QImage test(16, 16, QImage::Format_RGBA8888);
+	test.fill(Qt::green);
+
+	QTemporaryDir dir;
+
+	auto cczBmpFilePath = dir.filePath("test.bmp.ccz");
+	{
+		QVERIFY(test.save(cczBmpFilePath));
+		QImage loaded(cczBmpFilePath);
+		QCOMPARE(loaded.size(), QSize(16, 16));
+	}
+
+	auto cczPngFilePath = dir.filePath("test.png.ccz");
+	{
+		QImageWriter writer(cczPngFilePath);
+		QVERIFY(writer.canWrite());
+		QVERIFY(writer.write(test));
+	}
+	{
+		QImageReader reader(cczPngFilePath);
+		QVERIFY(reader.canRead());
+		QCOMPARE(reader.subType(), QByteArrayLiteral("png"));
+		auto loaded = reader.read();
+		QCOMPARE(loaded.size(), QSize(16, 16));
+	}
+
+	QBuffer buffer;
+	{
+		buffer.open(QBuffer::WriteOnly);
+		QImageWriter writer(&buffer, "ccz");
+		writer.setCompression(70);
+		writer.setSubType("jpg");
+		QVERIFY(writer.canWrite());
+		QVERIFY(writer.write(test));
+		buffer.close();
+	}
+	{
+		buffer.open(QBuffer::ReadOnly);
+		QImageReader reader(&buffer);
+		QCOMPARE(reader.format(), QByteArrayLiteral("ccz"));
+		QVERIFY(reader.subType().startsWith("jpg"));
+		auto loaded = reader.read();
+		QCOMPARE(loaded.size(), QSize(16, 16));
+		buffer.close();
+	}
 }

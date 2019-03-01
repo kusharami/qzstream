@@ -4,16 +4,15 @@
 
 class QBuffer;
 
-class QCCZDecompressionStream final : public QZDecompressionStream
+class QCCZDecompressor final : public QZDecompressor
 {
 	Q_OBJECT
 
 public:
-	explicit QCCZDecompressionStream(QObject *parent = nullptr);
-	explicit QCCZDecompressionStream(
-		QIODevice *source, QObject *parent = nullptr);
+	explicit QCCZDecompressor(QObject *parent = nullptr);
+	explicit QCCZDecompressor(QIODevice *source, QObject *parent = nullptr);
 
-	virtual ~QCCZDecompressionStream() override;
+	virtual ~QCCZDecompressor() override;
 
 	virtual void close() override;
 
@@ -21,19 +20,22 @@ protected:
 	virtual bool initOpen(OpenMode mode) override;
 };
 
-class QCCZCompressionStream final : public QZCompressionStream
+class QCCZCompressor final : public QZCompressor
 {
 	Q_OBJECT
 
 public:
-	explicit QCCZCompressionStream(QObject *parent = nullptr);
-	explicit QCCZCompressionStream(QIODevice *target, int compressionLevel = -1,
+	explicit QCCZCompressor(QObject *parent = nullptr);
+	explicit QCCZCompressor(QIODevice *target, int compressionLevel = -1,
 		QObject *parent = nullptr);
 
-	virtual ~QCCZCompressionStream() override;
+	virtual ~QCCZCompressor() override;
 
-	virtual bool initOpen(OpenMode mode) override;
+	virtual bool open(OpenMode mode = WriteOnly) override;
 	virtual void close() override;
+
+protected:
+	virtual bool initOpen(OpenMode mode) override;
 
 private:
 	QByteArray *mBytes;

@@ -27,35 +27,34 @@ enum
 	CCZ_COMPRESSION_ZLIB = 0
 };
 
-QCCZDecompressionStream::QCCZDecompressionStream(QObject *parent)
-	: QZDecompressionStream(parent)
+QCCZDecompressor::QCCZDecompressor(QObject *parent)
+	: QZDecompressor(parent)
 {
 }
 
-QCCZDecompressionStream::QCCZDecompressionStream(
-	QIODevice *source, QObject *parent)
-	: QZDecompressionStream(source, -1, parent)
+QCCZDecompressor::QCCZDecompressor(QIODevice *source, QObject *parent)
+	: QZDecompressor(source, -1, parent)
 {
 }
 
-QCCZDecompressionStream::~QCCZDecompressionStream()
+QCCZDecompressor::~QCCZDecompressor()
 {
 	close();
 }
 
-void QCCZDecompressionStream::close()
+void QCCZDecompressor::close()
 {
 	if (!isOpen())
 		return;
 
-	QZDecompressionStream::close();
+	QZDecompressor::close();
 
 	mIODeviceOriginalPosition -= sizeof(CCZHeader);
 }
 
-bool QCCZDecompressionStream::initOpen(OpenMode mode)
+bool QCCZDecompressor::initOpen(OpenMode mode)
 {
-	if (QZDecompressionStream::initOpen(mode))
+	if (QZDecompressor::initOpen(mode))
 	{
 		do
 		{
@@ -99,8 +98,8 @@ bool QCCZDecompressionStream::initOpen(OpenMode mode)
 	return false;
 }
 
-QCCZCompressionStream::QCCZCompressionStream(QObject *parent)
-	: QZCompressionStream(parent)
+QCCZCompressor::QCCZCompressor(QObject *parent)
+	: QZCompressor(parent)
 	, mBytes(nullptr)
 	, mCCZBuffer(nullptr)
 	, mTarget(nullptr)
@@ -108,9 +107,9 @@ QCCZCompressionStream::QCCZCompressionStream(QObject *parent)
 {
 }
 
-QCCZCompressionStream::QCCZCompressionStream(
+QCCZCompressor::QCCZCompressor(
 	QIODevice *target, int compressionLevel, QObject *parent)
-	: QZCompressionStream(target, compressionLevel, parent)
+	: QZCompressor(target, compressionLevel, parent)
 	, mBytes(nullptr)
 	, mCCZBuffer(nullptr)
 	, mTarget(nullptr)
@@ -119,15 +118,33 @@ QCCZCompressionStream::QCCZCompressionStream(
 	mCompressionLevel = compressionLevel;
 }
 
-QCCZCompressionStream::~QCCZCompressionStream()
+QCCZCompressor::~QCCZCompressor()
 {
 	close();
 }
 
-bool QCCZCompressionStream::initOpen(OpenMode mode)
+bool QCCZCompressor::open(OpenMode mode)
+{
+	bool ok = QZCompressor::open(mode);
+	if (ok)
+	{
+		QObject::connect(
+			mTarget, &QIODevice::aboutToClose, this, &QCCZCompressor::close);
+	} else
+	{
+		delete mCCZBuffer;
+		delete mBytes;
+		mCCZBuffer = nullptr;
+		mBytes = nullptr;
+	}
+
+	return ok;
+}
+
+bool QCCZCompressor::initOpen(OpenMode mode)
 {
 	mTarget = mIODevice;
-	if (!QZCompressionStream::initOpen(mode))
+	if (!QZCompressor::initOpen(mode))
 		return false;
 
 	mBytes = new QByteArray;
@@ -136,19 +153,22 @@ bool QCCZCompressionStream::initOpen(OpenMode mode)
 	mSavePosition = mIODeviceOriginalPosition;
 	mIODeviceOriginalPosition = 0;
 
-	bool bufferOpenOk = QZCompressionStream::initOpen(mode);
+	bool bufferOpenOk = QZCompressor::initOpen(mode);
 	Q_ASSERT(bufferOpenOk);
 	Q_UNUSED(bufferOpenOk);
 
 	return true;
 }
 
-void QCCZCompressionStream::close()
+void QCCZCompressor::close()
 {
 	if (!isOpen())
 		return;
 
-	QZCompressionStream::close();
+	QObject::disconnect(
+		mTarget, &QIODevice::aboutToClose, this, &QCCZCompressor::close);
+
+	QZCompressor::close();
 
 	Q_ASSERT(nullptr != mCCZBuffer);
 	Q_ASSERT(nullptr != mBytes);
@@ -204,4 +224,5 @@ void QCCZCompressionStream::close()
 	delete mBytes;
 	mCCZBuffer = nullptr;
 	mBytes = nullptr;
+	flushToFile();
 }

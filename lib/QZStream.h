@@ -4,7 +4,7 @@
 
 #include <zlib.h>
 
-class QZStreamBase : public QIODevice
+class QZStream : public QIODevice
 {
 public:
 	inline QIODevice *ioDevice() const;
@@ -13,8 +13,8 @@ public:
 	bool hasError() const;
 
 protected:
-	QZStreamBase(QObject *parent = nullptr);
-	QZStreamBase(QIODevice *stream, QObject *parent = nullptr);
+	QZStream(QObject *parent = nullptr);
+	QZStream(QIODevice *stream, QObject *parent = nullptr);
 
 	virtual bool waitForReadyRead(int msecs) override;
 	virtual bool waitForBytesWritten(int msecs) override;
@@ -42,28 +42,28 @@ protected:
 	bool mHasError;
 };
 
-QIODevice *QZStreamBase::ioDevice() const
+QIODevice *QZStream::ioDevice() const
 {
 	return mIODevice;
 }
 
-inline bool QZStreamBase::hasError() const
+inline bool QZStream::hasError() const
 {
 	return mHasError;
 }
 
-class QZDecompressionStream : public QZStreamBase
+class QZDecompressor : public QZStream
 {
 	Q_OBJECT
 
 public:
-	explicit QZDecompressionStream(QObject *parent = nullptr);
-	explicit QZDecompressionStream(QIODevice *source,
-		qint64 uncompressedSize = -1, QObject *parent = nullptr);
+	explicit QZDecompressor(QObject *parent = nullptr);
+	explicit QZDecompressor(QIODevice *source, qint64 uncompressedSize = -1,
+		QObject *parent = nullptr);
 
 	void setUncompressedSize(qint64 value);
 
-	virtual ~QZDecompressionStream() override;
+	virtual ~QZDecompressor() override;
 
 	virtual bool isSequential() const override;
 
@@ -89,25 +89,25 @@ protected:
 	qint64 mUncompressedSize;
 };
 
-inline void QZDecompressionStream::setUncompressedSize(qint64 value)
+inline void QZDecompressor::setUncompressedSize(qint64 value)
 {
 	mUncompressedSize = value;
 }
 
-class QZCompressionStream : public QZStreamBase
+class QZCompressor : public QZStream
 {
 	Q_OBJECT
 
 public:
-	explicit QZCompressionStream(QObject *parent = nullptr);
-	explicit QZCompressionStream(QIODevice *target,
+	explicit QZCompressor(QObject *parent = nullptr);
+	explicit QZCompressor(QIODevice *target,
 		int compressionLevel = Z_DEFAULT_COMPRESSION,
 		QObject *parent = nullptr);
 
 	int compressionLevel() const;
 	void setCompressionLevel(int level);
 
-	virtual ~QZCompressionStream() override;
+	virtual ~QZCompressor() override;
 
 	virtual bool isSequential() const override;
 
@@ -122,6 +122,7 @@ public:
 protected:
 	virtual bool initOpen(OpenMode mode);
 	virtual qint64 writeData(const char *data, qint64 maxlen) override;
+	void flushToFile();
 
 private:
 	virtual qint64 readData(char *, qint64) override;
@@ -134,12 +135,12 @@ protected:
 	int mCompressionLevel;
 };
 
-inline int QZCompressionStream::compressionLevel() const
+inline int QZCompressor::compressionLevel() const
 {
 	return mCompressionLevel;
 }
 
-inline void QZCompressionStream::setCompressionLevel(int level)
+inline void QZCompressor::setCompressionLevel(int level)
 {
 	mCompressionLevel = level;
 }

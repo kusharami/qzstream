@@ -27,13 +27,6 @@ SOURCES += \
     QZStream.cpp \
     QCCZStream.cpp
 
-CONFIG(debug, debug|release) {
-    CONFIG_DIR = Debug
-} else {
-    CONFIG_DIR = Release
-}
-
-DESTDIR = $$_PRO_FILE_PWD_/../build/$$CONFIG_DIR
-
 include(../QZStream.pri)
+DESTDIR = $$QZSTREAM_LIB_DIR
 

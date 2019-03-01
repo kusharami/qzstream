@@ -1,6 +1,7 @@
 ﻿#include "QZStream.h"
+#include <QFileDevice>
 
-QZStreamBase::QZStreamBase(QObject *parent)
+QZStream::QZStream(QObject *parent)
 	: QIODevice(parent)
 	, mIODevice(nullptr)
 	, mIODeviceOriginalPosition(0)
@@ -10,13 +11,13 @@ QZStreamBase::QZStreamBase(QObject *parent)
 	memset(&mZStream, 0, sizeof(mZStream));
 }
 
-QZStreamBase::QZStreamBase(QIODevice *stream, QObject *parent)
-	: QZStreamBase(parent)
+QZStream::QZStream(QIODevice *stream, QObject *parent)
+	: QZStream(parent)
 {
 	setIODevice(stream);
 }
 
-void QZStreamBase::setIODevice(QIODevice *ioDevice)
+void QZStream::setIODevice(QIODevice *ioDevice)
 {
 	if (ioDevice != mIODevice)
 	{
@@ -27,7 +28,7 @@ void QZStreamBase::setIODevice(QIODevice *ioDevice)
 	}
 }
 
-bool QZStreamBase::waitForReadyRead(int msecs)
+bool QZStream::waitForReadyRead(int msecs)
 {
 	if (isReadable())
 		return mIODevice->waitForReadyRead(msecs);
@@ -35,7 +36,7 @@ bool QZStreamBase::waitForReadyRead(int msecs)
 	return false;
 }
 
-bool QZStreamBase::waitForBytesWritten(int msecs)
+bool QZStream::waitForBytesWritten(int msecs)
 {
 	if (isWritable())
 		return mIODevice->waitForBytesWritten(msecs);
@@ -43,7 +44,7 @@ bool QZStreamBase::waitForBytesWritten(int msecs)
 	return false;
 }
 
-bool QZStreamBase::check(int code)
+bool QZStream::check(int code)
 {
 	if (code < 0)
 	{
@@ -54,7 +55,7 @@ bool QZStreamBase::check(int code)
 	return !mHasError;
 }
 
-bool QZStreamBase::openIODevice(OpenMode mode)
+bool QZStream::openIODevice(OpenMode mode)
 {
 	mode &= ~(QIODevice::Text | QIODevice::Unbuffered);
 
@@ -88,7 +89,7 @@ bool QZStreamBase::openIODevice(OpenMode mode)
 	return false;
 }
 
-bool QZStreamBase::ioDeviceSeekInit()
+bool QZStream::ioDeviceSeekInit()
 {
 	if (mIODevice->isTextModeEnabled() ||
 		(!mIODevice->isSequential() && !mIODevice->seek(mIODevicePosition)))
@@ -101,43 +102,43 @@ bool QZStreamBase::ioDeviceSeekInit()
 	return true;
 }
 
-QZDecompressionStream::QZDecompressionStream(QObject *parent)
-	: QZStreamBase(parent)
+QZDecompressor::QZDecompressor(QObject *parent)
+	: QZStream(parent)
 	, mUncompressedSize(-1)
 {
 }
 
-QZDecompressionStream::QZDecompressionStream(
+QZDecompressor::QZDecompressor(
 	QIODevice *source, qint64 uncompressedSize, QObject *parent)
-	: QZStreamBase(source, parent)
+	: QZStream(source, parent)
 	, mUncompressedSize(uncompressedSize)
 {
 }
 
-QZDecompressionStream::~QZDecompressionStream()
+QZDecompressor::~QZDecompressor()
 {
 	close();
 }
 
-bool QZDecompressionStream::isSequential() const
+bool QZDecompressor::isSequential() const
 {
 	return mIODevice->isSequential();
 }
 
-bool QZDecompressionStream::open(OpenMode mode)
+bool QZDecompressor::open(OpenMode mode)
 {
 	if (nullptr != mIODevice && initOpen(mode) && check(inflateInit(&mZStream)))
 	{
 		mode |= Unbuffered;
 		mode &= ~(WriteOnly | Truncate | Append);
-		bool openOk = QZStreamBase::open(mode);
+		bool openOk = QZStream::open(mode);
 		Q_ASSERT(openOk);
 		Q_UNUSED(openOk);
 
 		QObject::connect(
 			mIODevice, &QIODevice::readyRead, this, &QIODevice::readyRead);
-		QObject::connect(mIODevice, &QIODevice::aboutToClose, this,
-			&QZDecompressionStream::close);
+		QObject::connect(
+			mIODevice, &QIODevice::aboutToClose, this, &QZDecompressor::close);
 
 		return true;
 	}
@@ -145,7 +146,7 @@ bool QZDecompressionStream::open(OpenMode mode)
 	return false;
 }
 
-void QZDecompressionStream::close()
+void QZDecompressor::close()
 {
 	if (!isOpen())
 	{
@@ -154,17 +155,17 @@ void QZDecompressionStream::close()
 
 	QObject::disconnect(
 		mIODevice, &QIODevice::readyRead, this, &QIODevice::readyRead);
-	QObject::disconnect(mIODevice, &QIODevice::aboutToClose, this,
-		&QZDecompressionStream::close);
+	QObject::disconnect(
+		mIODevice, &QIODevice::aboutToClose, this, &QZDecompressor::close);
 
-	QZStreamBase::close();
+	QZStream::close();
 
 	mIODevicePosition -= mZStream.avail_in;
 	ioDeviceSeekInit();
 	check(inflateEnd(&mZStream));
 }
 
-qint64 QZDecompressionStream::size() const
+qint64 QZDecompressor::size() const
 {
 	if (!isOpen())
 		return 0;
@@ -175,7 +176,7 @@ qint64 QZDecompressionStream::size() const
 	return bytesAvailable();
 }
 
-qint64 QZDecompressionStream::bytesAvailable() const
+qint64 QZDecompressor::bytesAvailable() const
 {
 	if (!isOpen())
 		return 0;
@@ -191,17 +192,17 @@ qint64 QZDecompressionStream::bytesAvailable() const
 	return qint64(std::numeric_limits<uLong>::max());
 }
 
-bool QZDecompressionStream::atEnd() const
+bool QZDecompressor::atEnd() const
 {
 	return bytesAvailable() == 0;
 }
 
-qint64 QZDecompressionStream::bytesToWrite() const
+qint64 QZDecompressor::bytesToWrite() const
 {
 	return 0;
 }
 
-qint64 QZDecompressionStream::readData(char *data, qint64 maxlen)
+qint64 QZDecompressor::readData(char *data, qint64 maxlen)
 {
 	if (seekInternal(pos()))
 	{
@@ -211,7 +212,7 @@ qint64 QZDecompressionStream::readData(char *data, qint64 maxlen)
 	return -1;
 }
 
-bool QZDecompressionStream::initOpen(OpenMode mode)
+bool QZDecompressor::initOpen(OpenMode mode)
 {
 	Q_ASSERT(!isOpen());
 	if (0 == (mode & ReadOnly))
@@ -249,7 +250,7 @@ bool QZDecompressionStream::initOpen(OpenMode mode)
 	return true;
 }
 
-bool QZDecompressionStream::seekInternal(qint64 pos)
+bool QZDecompressor::seekInternal(qint64 pos)
 {
 	if (!isOpen())
 		return false;
@@ -292,7 +293,7 @@ bool QZDecompressionStream::seekInternal(qint64 pos)
 	return true;
 }
 
-qint64 QZDecompressionStream::readInternal(char *data, qint64 maxlen)
+qint64 QZDecompressor::readInternal(char *data, qint64 maxlen)
 {
 	if (!isOpen() || !ioDeviceSeekInit())
 	{
@@ -355,55 +356,71 @@ qint64 QZDecompressionStream::readInternal(char *data, qint64 maxlen)
 	return maxlen - count;
 }
 
-qint64 QZDecompressionStream::writeData(const char *, qint64)
+qint64 QZDecompressor::writeData(const char *, qint64)
 {
 	qWarning("QZDecompressionStream is read only!");
 	return -1;
 }
 
-QZCompressionStream::QZCompressionStream(QObject *parent)
-	: QZStreamBase(parent)
+QZCompressor::QZCompressor(QObject *parent)
+	: QZStream(parent)
 	, mCompressionLevel(Z_DEFAULT_COMPRESSION)
 {
 }
 
-QZCompressionStream::QZCompressionStream(
+QZCompressor::QZCompressor(
 	QIODevice *target, int compressionLevel, QObject *parent)
-	: QZStreamBase(target, parent)
+	: QZStream(target, parent)
 	, mCompressionLevel(compressionLevel)
 {
 }
 
-QZCompressionStream::~QZCompressionStream()
+QZCompressor::~QZCompressor()
 {
 	close();
 }
 
-bool QZCompressionStream::isSequential() const
+bool QZCompressor::isSequential() const
 {
 	return true;
 }
 
-bool QZCompressionStream::open(OpenMode mode)
+bool QZCompressor::open(OpenMode mode)
 {
 	if (nullptr != mIODevice && initOpen(mode) &&
 		check(deflateInit(&mZStream, mCompressionLevel)))
 	{
 		mode |= Truncate;
 		mode &= ~(ReadOnly | Append);
-		bool openOk = QZStreamBase::open(mode);
+		bool openOk = QZStream::open(mode);
 		Q_ASSERT(openOk);
 		Q_UNUSED(openOk);
 
-		QObject::connect(mIODevice, &QIODevice::aboutToClose, this,
-			&QZCompressionStream::close);
+		QObject::connect(
+			mIODevice, &QIODevice::aboutToClose, this, &QZCompressor::close);
 		return true;
 	}
 
 	return false;
 }
 
-void QZCompressionStream::close()
+void QZCompressor::flushToFile()
+{
+	if (!mHasError)
+	{
+		auto fileDevice = qobject_cast<QFileDevice *>(mIODevice);
+		if (fileDevice)
+		{
+			if (!fileDevice->flush())
+			{
+				mHasError = true;
+				setErrorString(fileDevice->errorString());
+			}
+		}
+	}
+}
+
+void QZCompressor::close()
 {
 	if (!isOpen())
 	{
@@ -411,9 +428,9 @@ void QZCompressionStream::close()
 	}
 
 	QObject::disconnect(
-		mIODevice, &QIODevice::aboutToClose, this, &QZCompressionStream::close);
+		mIODevice, &QIODevice::aboutToClose, this, &QZCompressor::close);
 
-	QZStreamBase::close();
+	QZStream::close();
 
 	mZStream.next_in = Z_NULL;
 	mZStream.avail_in = 0;
@@ -444,25 +461,26 @@ void QZCompressionStream::close()
 	}
 
 	check(deflateEnd(&mZStream));
+	flushToFile();
 }
 
-qint64 QZCompressionStream::size() const
+qint64 QZCompressor::size() const
 {
 	return isOpen() ? mZStream.total_in : 0;
 }
 
-bool QZCompressionStream::canReadLine() const
+bool QZCompressor::canReadLine() const
 {
 	qWarning("QZCompressionStream is write only!");
 	return false;
 }
 
-qint64 QZCompressionStream::bytesToWrite() const
+qint64 QZCompressor::bytesToWrite() const
 {
 	return isOpen() ? mZStream.avail_out : 0;
 }
 
-qint64 QZCompressionStream::writeData(const char *data, qint64 maxlen)
+qint64 QZCompressor::writeData(const char *data, qint64 maxlen)
 {
 	if (!mIODevice->isOpen() || !ioDeviceSeekInit())
 	{
@@ -514,7 +532,7 @@ qint64 QZCompressionStream::writeData(const char *data, qint64 maxlen)
 	return maxlen - count;
 }
 
-bool QZCompressionStream::initOpen(OpenMode mode)
+bool QZCompressor::initOpen(OpenMode mode)
 {
 	Q_ASSERT(!isOpen());
 	Q_ASSERT(nullptr != mIODevice);
@@ -555,19 +573,19 @@ bool QZCompressionStream::initOpen(OpenMode mode)
 	return true;
 }
 
-qint64 QZCompressionStream::readData(char *, qint64)
+qint64 QZCompressor::readData(char *, qint64)
 {
 	warnWriteOnly();
 	return -1;
 }
 
-qint64 QZCompressionStream::bytesAvailable() const
+qint64 QZCompressor::bytesAvailable() const
 {
 	warnWriteOnly();
 	return -1;
 }
 
-bool QZCompressionStream::flushBuffer(int size)
+bool QZCompressor::flushBuffer(int size)
 {
 	Q_ASSERT(mIODevice->isOpen());
 	if (mIODevice->write(reinterpret_cast<char *>(mBuffer), size) != size)
@@ -580,7 +598,7 @@ bool QZCompressionStream::flushBuffer(int size)
 	return true;
 }
 
-void QZCompressionStream::warnWriteOnly() const
+void QZCompressor::warnWriteOnly() const
 {
 	qWarning("QZCompressionStream is write only!");
 }
