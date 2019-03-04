@@ -63,3 +63,5 @@ INCLUDEPATH += ../lib
 
 PLUGIN_TYPE = imageformats
 PLUGIN_CLASS_NAME = QCCZImageContainerPlugin
+
+DISTFILES += CHANGELOG

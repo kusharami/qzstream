@@ -30,3 +30,4 @@ SOURCES += \
 include(../QZStream.pri)
 DESTDIR = $$QZSTREAM_LIB_DIR
 
+DISTFILES += CHANGELOG
