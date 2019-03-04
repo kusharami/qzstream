@@ -1,6 +1,6 @@
 QIODevice based ZLIB compresssion/decompression library
 =======================================================
 
-v1.1.1  ??.03.2019
+v2.0.0  ??.03.2019
     [FIX] Fixed crash when target file device is destroyed before
 	 QZCompressor made the final write.
