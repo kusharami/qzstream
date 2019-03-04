@@ -1,6 +1,7 @@
 ﻿#include "QCCZImageContainerPlugin.h"
 
 #include "QCCZImageContainerHandler.h"
+#include "QCCZStream.h"
 
 #include <QIODevice>
 
@@ -20,8 +21,7 @@ QImageIOPlugin::Capabilities QCCZImageContainerPlugin::capabilities(
 
 	Capabilities result;
 
-	if (device->isReadable() &&
-		!QCCZImageContainerHandler::containedFormat(device).isEmpty())
+	if (CCZ::validateHeader(device))
 	{
 		result |= CanRead;
 	}
@@ -39,7 +39,8 @@ QImageIOHandler *QCCZImageContainerPlugin::create(
 {
 	auto handler = new QCCZImageContainerHandler;
 	handler->setDevice(device);
-	handler->setFormat(format);
+	if (!format.isEmpty())
+		handler->setFormat(format);
 
 	return handler;
 }

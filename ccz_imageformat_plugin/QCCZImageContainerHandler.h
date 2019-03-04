@@ -26,7 +26,6 @@ public:
 	virtual ~QCCZImageContainerHandler() override;
 
 	static QByteArray formatStatic();
-	static QByteArray containedFormat(QIODevice *device);
 
 	void setSubType(const QByteArray &t);
 

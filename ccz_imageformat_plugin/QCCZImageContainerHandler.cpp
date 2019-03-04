@@ -12,8 +12,6 @@
 #include <set>
 #include <atomic>
 
-static std::atomic<bool> sRecursiveCheck(false);
-
 QCCZImageContainerHandler::QCCZImageContainerHandler()
 	: mReader(nullptr)
 	, mDecompressor(nullptr)
@@ -23,6 +21,7 @@ QCCZImageContainerHandler::QCCZImageContainerHandler()
 	, mCompressionRatio(-1)
 	, mGamma(0.f)
 {
+	setFormat(formatStatic());
 }
 
 QCCZImageContainerHandler::~QCCZImageContainerHandler()
@@ -38,37 +37,12 @@ QByteArray QCCZImageContainerHandler::formatStatic()
 	return QByteArrayLiteral("ccz");
 }
 
-QByteArray QCCZImageContainerHandler::containedFormat(QIODevice *device)
-{
-	QByteArray result;
-	if (!device || !device->isReadable())
-		return result;
-
-	if (sRecursiveCheck.load())
-		return result;
-
-	sRecursiveCheck.store(true);
-
-	device->startTransaction();
-	{
-		QCCZDecompressor decompressor(device);
-		if (decompressor.open())
-		{
-			result = QImageReader::imageFormat(&decompressor);
-		}
-	}
-	device->rollbackTransaction();
-
-	sRecursiveCheck.store(false);
-	return result;
-}
-
 bool QCCZImageContainerHandler::canRead() const
 {
 	if (mReader)
 		return mReader->canRead();
 
-	return !containedFormat(device()).isEmpty();
+	return CCZ::validateHeader(device());
 }
 
 bool QCCZImageContainerHandler::read(QImage *image)

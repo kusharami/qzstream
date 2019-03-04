@@ -6,26 +6,41 @@
 #include <QDataStream>
 
 static const char CCZ_Signature[] = "CCZ!";
+
 enum
 {
 	CCZ_SIGNATURE_SIZE = sizeof(CCZ_Signature) - 1,
-	CCZ_VERSION = 2
+	CCZ_VERSION = 2,
+	CCZ_COMPRESSION_ZLIB = 0
 };
 
 // Format header
 struct CCZHeader
 {
 	char sig[CCZ_SIGNATURE_SIZE]; // signature. Should be 'CCZ!' 4 bytes
-	quint16 compression_type; // should 0 (See below for supported formats)
+	quint16 compression_type; // should 0 (See above for supported formats)
 	quint16 version; // should be 2
-	quint32 reserved; // Reserverd for users.
+	quint32 reserved; // Reserved for users
 	quint32 len; // size of the uncompressed file
+
+	bool readFrom(QIODevice *device);
 };
 
-enum
+namespace CCZ
 {
-	CCZ_COMPRESSION_ZLIB = 0
-};
+bool validateHeader(QIODevice *device)
+{
+	if (!device || !device->isReadable())
+		return false;
+
+	device->startTransaction();
+	CCZHeader header;
+	bool ok = header.readFrom(device);
+	device->rollbackTransaction();
+
+	return ok;
+}
+}
 
 QCCZDecompressor::QCCZDecompressor(QObject *parent)
 	: QZDecompressor(parent)
@@ -61,26 +76,8 @@ bool QCCZDecompressor::initOpen(OpenMode mode)
 			if (!ioDeviceSeekInit())
 				break;
 
-			QDataStream stream(mIODevice);
-			stream.setByteOrder(QDataStream::BigEndian);
 			CCZHeader header;
-			stream.readRawData(header.sig, CCZ_SIGNATURE_SIZE);
-			if (0 != memcmp(header.sig, CCZ_Signature, CCZ_SIGNATURE_SIZE))
-				break;
-
-			stream >> header.compression_type;
-
-			if (CCZ_COMPRESSION_ZLIB != header.compression_type)
-				break;
-
-			stream >> header.version;
-			if (CCZ_VERSION != header.version)
-				break;
-
-			stream >> header.reserved;
-			stream >> header.len;
-
-			if (stream.status() != QDataStream::Ok)
+			if (!header.readFrom(mIODevice))
 				break;
 
 			setUncompressedSize(header.len);
@@ -225,4 +222,27 @@ void QCCZCompressor::close()
 	mCCZBuffer = nullptr;
 	mBytes = nullptr;
 	flushToFile();
+}
+
+bool CCZHeader::readFrom(QIODevice *device)
+{
+	QDataStream stream(device);
+	stream.setByteOrder(QDataStream::BigEndian);
+	stream.readRawData(sig, CCZ_SIGNATURE_SIZE);
+	if (0 != memcmp(sig, CCZ_Signature, CCZ_SIGNATURE_SIZE))
+		return false;
+
+	stream >> compression_type;
+
+	if (CCZ_COMPRESSION_ZLIB != compression_type)
+		return false;
+
+	stream >> version;
+	if (CCZ_VERSION != version)
+		return false;
+
+	stream >> reserved;
+	stream >> len;
+
+	return stream.status() == QDataStream::Ok;
 }

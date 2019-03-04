@@ -186,7 +186,7 @@ void Tests::testImageFormatPlugin()
 		buffer.open(QBuffer::ReadOnly);
 		QImageReader reader(&buffer);
 		QCOMPARE(reader.format(), QByteArrayLiteral("ccz"));
-		QVERIFY(reader.subType().startsWith("jpg"));
+		QVERIFY(reader.subType().startsWith("jpeg"));
 		auto loaded = reader.read();
 		QCOMPARE(loaded.size(), QSize(16, 16));
 		buffer.close();

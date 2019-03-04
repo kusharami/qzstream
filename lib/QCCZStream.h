@@ -4,6 +4,11 @@
 
 class QBuffer;
 
+namespace CCZ
+{
+bool validateHeader(QIODevice *device);
+}
+
 class QCCZDecompressor final : public QZDecompressor
 {
 	Q_OBJECT
