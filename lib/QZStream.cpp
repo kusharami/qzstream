@@ -602,3 +602,15 @@ void QZCompressor::warnWriteOnly() const
 {
 	qWarning("QZCompressionStream is write only!");
 }
+
+void QZCompressor::setCompressionLevel(int level)
+{
+	if (mCompressionLevel == level)
+		return;
+
+	mCompressionLevel = level;
+	if (!isOpen())
+		return;
+
+	check(deflateParams(&mZStream, mCompressionLevel, Z_DEFAULT_STRATEGY));
+}

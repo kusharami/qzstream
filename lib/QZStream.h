@@ -139,8 +139,3 @@ inline int QZCompressor::compressionLevel() const
 {
 	return mCompressionLevel;
 }
-
-inline void QZCompressor::setCompressionLevel(int level)
-{
-	mCompressionLevel = level;
-}
