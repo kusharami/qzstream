@@ -3,6 +3,7 @@
 #include <QImageIOHandler>
 #include <QSize>
 #include <QSharedPointer>
+#include <QRect>
 
 class QImageReader;
 class QImageWriter;
@@ -11,6 +12,14 @@ class QCCZCompressor;
 
 class QCCZImageContainerHandler : public QImageIOHandler
 {
+	QByteArray mWriteFormat;
+	QByteArray mWriteSubType;
+	QRect mClipRect;
+	QSize mScaledSize;
+	QRect mScaledClipRect;
+	QString mDescription;
+	Transformations mTransformations;
+
 	mutable QImageReader *mReader;
 	mutable QCCZDecompressor *mDecompressor;
 	QImageWriter *mWriter;
@@ -18,8 +27,9 @@ class QCCZImageContainerHandler : public QImageIOHandler
 	int mQuality;
 	int mCompressionRatio;
 	float mGamma;
-	QByteArray mWriteFormat;
-	QByteArray mWriteSubType;
+	bool mOptimizedWrite;
+	bool mProgressiveScanWrite;
+	mutable bool mAutoTransform;
 
 public:
 	QCCZImageContainerHandler();

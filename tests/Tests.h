@@ -11,7 +11,10 @@ class Tests : public QObject
 private slots:
 	void test_data();
 	void test();
-	void testImageFormatPlugin();
+	void testImageFormatPluginInit();
+	void testImageFormatPluginFileSaveLoad();
+	void testImageFormatPluginFileReadWrite();
+	void testImageFormatPluginBufferReadWrite();
 
 private:
 	enum
@@ -22,4 +25,5 @@ private:
 
 	static QZStream *newCompressor(int type);
 	static QZStream *newDecompressor(int type, int uncompressedSize);
+	static const QImage &testImage();
 };

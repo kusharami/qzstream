@@ -13,13 +13,17 @@
 #include <atomic>
 
 QCCZImageContainerHandler::QCCZImageContainerHandler()
-	: mReader(nullptr)
+	: mTransformations(TransformationNone)
+	, mReader(nullptr)
 	, mDecompressor(nullptr)
 	, mWriter(nullptr)
 	, mCompressor(nullptr)
 	, mQuality(-1)
 	, mCompressionRatio(-1)
 	, mGamma(0.f)
+	, mOptimizedWrite(false)
+	, mProgressiveScanWrite(false)
+	, mAutoTransform(false)
 {
 	setFormat(formatStatic());
 }
@@ -47,18 +51,59 @@ bool QCCZImageContainerHandler::canRead() const
 
 bool QCCZImageContainerHandler::read(QImage *image)
 {
-	if (ensureScanned())
+	if (!ensureScanned())
+		return false;
+
+	bool handlerClip = mClipRect.isValid() && mReader->supportsOption(ClipRect);
+	bool handlerScale = mScaledSize.isValid() &&
+		(handlerClip || !mClipRect.isValid()) &&
+		mReader->supportsOption(ScaledSize);
+	bool handlerScaleClip = handlerScale && mScaledClipRect.isValid() &&
+		mReader->supportsOption(ScaledClipRect);
+
+	mReader->setClipRect(handlerClip ? mClipRect : QRect());
+	mReader->setScaledSize(handlerScale ? mScaledSize : QSize());
+	mReader->setScaledClipRect(handlerScaleClip ? mScaledClipRect : QRect());
+	mReader->setQuality(mQuality);
+	mReader->setGamma(mGamma);
+	mReader->setAutoTransform(false);
+
+	bool ok = mReader->read(image);
+	if (!ok)
+		return false;
+
+	if (!handlerClip && mClipRect.isValid())
 	{
-		return mReader->read(image);
+		*image = image->copy(mClipRect);
+	}
+	if (!handlerScale && mScaledSize.isValid())
+	{
+		*image = image->scaled(
+			mScaledSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+	}
+	if (!handlerScaleClip && (handlerScale || mScaledSize.isValid()) &&
+		mScaledClipRect.isValid())
+	{
+		*image = image->copy(mScaledClipRect);
 	}
 
-	return false;
+	return true;
 }
 
 bool QCCZImageContainerHandler::write(const QImage &image)
 {
 	if (!ensureWritable())
 		return false;
+
+	mCompressor->setCompressionLevel(
+		compressionRatioToLevel(mCompressionRatio));
+
+	mWriter->setQuality(mQuality);
+	mWriter->setGamma(mGamma);
+	mWriter->setDescription(mDescription);
+	mWriter->setTransformation(mTransformations);
+	mWriter->setOptimizedWrite(mOptimizedWrite);
+	mWriter->setProgressiveScanWrite(mProgressiveScanWrite);
 
 	return mWriter->write(image);
 }
@@ -73,7 +118,7 @@ QVariant QCCZImageContainerHandler::option(ImageOption option) const
 		case Description:
 		{
 			if (!ensureScanned())
-				break;
+				return mDescription;
 
 			QStringList description;
 			for (const auto &key : mReader->textKeys())
@@ -94,20 +139,17 @@ QVariant QCCZImageContainerHandler::option(ImageOption option) const
 			return mCompressionRatio;
 
 		case OptimizedWrite:
-			return mWriter ? mWriter->optimizedWrite() : false;
+			return mOptimizedWrite;
 
 		case ProgressiveScanWrite:
-			return mWriter ? mWriter->progressiveScanWrite() : false;
+			return mProgressiveScanWrite;
 
 		case Quality:
 		{
-			if (mReader)
-				return mReader->quality();
+			if (!ensureScanned())
+				return mQuality;
 
-			if (mWriter)
-				return mWriter->quality();
-
-			return mQuality;
+			return mReader->quality();
 		}
 
 		case Animation:
@@ -140,15 +182,7 @@ QVariant QCCZImageContainerHandler::option(ImageOption option) const
 			if (!ensureScanned())
 				break;
 
-			return mReader->supportsAnimation() || mReader->imageCount() > 0;
-		}
-
-		case TransformedByDefault:
-		{
-			if (!ensureScanned())
-				break;
-
-			return mReader->autoTransform();
+			return mReader->imageCount() > 1;
 		}
 
 		case Size:
@@ -159,18 +193,10 @@ QVariant QCCZImageContainerHandler::option(ImageOption option) const
 			return mReader->size();
 		}
 
-		case ScaledSize:
-		{
-			if (!ensureScanned())
-				break;
-
-			return mReader->scaledSize();
-		}
-
 		case Gamma:
 		{
 			if (!ensureScanned())
-				break;
+				return mGamma;
 
 			return mReader->gamma();
 		}
@@ -186,26 +212,25 @@ QVariant QCCZImageContainerHandler::option(ImageOption option) const
 		case ImageTransformation:
 		{
 			if (!ensureScanned())
-				break;
+				return int(mTransformations);
+
+			if (mReader->autoTransform())
+				return 0;
 
 			return int(mReader->transformation());
 		}
 
-		case ClipRect:
-		{
-			if (!ensureScanned())
-				break;
+		case TransformedByDefault:
+			return mAutoTransform;
 
-			return mReader->clipRect();
-		}
+		case ClipRect:
+			return mClipRect;
+
+		case ScaledSize:
+			return mScaledSize;
 
 		case ScaledClipRect:
-		{
-			if (!ensureScanned())
-				break;
-
-			return mReader->scaledClipRect();
-		}
+			return mScaledClipRect;
 	}
 
 	return QVariant();
@@ -216,6 +241,7 @@ void QCCZImageContainerHandler::setOption(
 {
 	switch (option)
 	{
+		case TransformedByDefault:
 		case Name:
 		case ImageFormat:
 		case Size:
@@ -227,19 +253,7 @@ void QCCZImageContainerHandler::setOption(
 
 		case Description:
 		{
-			if (!ensureWritable())
-				break;
-
-			mWriter->setDescription(value.toString());
-			break;
-		}
-
-		case TransformedByDefault:
-		{
-			if (!ensureScanned())
-				break;
-
-			mReader->setAutoTransform(value.toBool());
+			mDescription = value.toString();
 			break;
 		}
 
@@ -253,51 +267,24 @@ void QCCZImageContainerHandler::setOption(
 			int r = value.toInt(&ok);
 
 			mCompressionRatio = ok ? r : -1;
-
-			if (mWriter && ensureWritable())
-			{
-				mCompressor->setCompressionLevel(
-					compressionRatioToLevel(mCompressionRatio));
-			}
 			break;
 		}
 
 		case OptimizedWrite:
 		{
-			if (!ensureWritable())
-				break;
-
-			mWriter->setOptimizedWrite(value.toBool());
+			mOptimizedWrite = value.toBool();
 			break;
 		}
 
 		case ProgressiveScanWrite:
 		{
-			if (!ensureWritable())
-				break;
-
-			mWriter->setProgressiveScanWrite(value.toBool());
-			break;
-		}
-
-		case ScaledSize:
-		{
-			if (!ensureScanned())
-				break;
-
-			mReader->setScaledSize(value.toSize());
+			mProgressiveScanWrite = value.toBool();
 			break;
 		}
 
 		case Gamma:
 		{
-			float gamma = value.toFloat();
-			if (mReader)
-				mReader->setGamma(gamma);
-			if (mWriter)
-				mWriter->setGamma(gamma);
-
-			mGamma = gamma;
+			mGamma = value.toFloat();
 			break;
 		}
 
@@ -307,26 +294,24 @@ void QCCZImageContainerHandler::setOption(
 			int q = value.toInt(&ok);
 
 			mQuality = ok ? q : -1;
-			if (mReader)
-				mReader->setQuality(mQuality);
-			if (mWriter)
-				mWriter->setQuality(mQuality);
 			break;
 		}
 
 		case ClipRect:
 		{
-			if (!ensureScanned())
-				break;
-			mReader->setClipRect(value.toRect());
+			mClipRect = value.toRect();
+			break;
+		}
+
+		case ScaledSize:
+		{
+			mScaledSize = value.toSize();
 			break;
 		}
 
 		case ScaledClipRect:
 		{
-			if (!ensureScanned())
-				break;
-			mReader->setScaledClipRect(value.toRect());
+			mScaledClipRect = value.toRect();
 			break;
 		}
 
@@ -340,10 +325,7 @@ void QCCZImageContainerHandler::setOption(
 
 		case ImageTransformation:
 		{
-			if (!ensureWritable())
-				break;
-
-			mWriter->setTransformation(Transformations(value.toInt()));
+			mTransformations = Transformations(value.toInt());
 			break;
 		}
 	}
@@ -351,6 +333,14 @@ void QCCZImageContainerHandler::setOption(
 
 bool QCCZImageContainerHandler::supportsOption(ImageOption option) const
 {
+	if (option == TransformedByDefault)
+	{
+		if (ensureScanned())
+			return mAutoTransform;
+
+		return false;
+	}
+
 	return option != Name;
 }
 
@@ -505,8 +495,6 @@ bool QCCZImageContainerHandler::ensureWritable()
 
 				mWriter = new QImageWriter(mCompressor, mWriteFormat);
 				mWriter->setSubType(mWriteSubType);
-				mWriter->setQuality(mQuality);
-				mWriter->setGamma(mGamma);
 			}
 		}
 	}
@@ -521,7 +509,7 @@ bool QCCZImageContainerHandler::ensureScanned() const
 		return scanDevice();
 	}
 
-	return mReader && mReader->canRead();
+	return mReader->canRead();
 }
 
 bool QCCZImageContainerHandler::scanDevice() const
@@ -538,7 +526,10 @@ bool QCCZImageContainerHandler::scanDevice() const
 
 	Q_ASSERT(!mReader);
 	mReader = new QImageReader(mDecompressor);
-	return mReader->canRead();
+
+	bool ok = mReader->canRead();
+	mAutoTransform = ok && mReader->autoTransform();
+	return ok;
 }
 
 int QCCZImageContainerHandler::imageCount() const

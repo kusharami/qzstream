@@ -122,7 +122,18 @@ QZStream *Tests::newDecompressor(int type, int uncompressedSize)
 	return nullptr;
 }
 
-void Tests::testImageFormatPlugin()
+const QImage &Tests::testImage()
+{
+	static QImage result;
+	if (result.isNull())
+	{
+		result = QImage(16, 16, QImage::Format_RGBA8888);
+		result.fill(Qt::green);
+	}
+	return result;
+}
+
+void Tests::testImageFormatPluginInit()
 {
 	QList<QList<QByteArray>> supported;
 	supported.append(QImageReader::supportedImageFormats());
@@ -145,33 +156,37 @@ void Tests::testImageFormatPlugin()
 			QVERIFY(writer.supportedSubTypes().indexOf(format) >= 0);
 		}
 	}
+}
 
-	QImage test(16, 16, QImage::Format_RGBA8888);
-	test.fill(Qt::green);
-
+void Tests::testImageFormatPluginFileSaveLoad()
+{
 	QTemporaryDir dir;
 
 	auto cczBmpFilePath = dir.filePath("test.bmp.ccz");
-	{
-		QVERIFY(test.save(cczBmpFilePath));
-		QImage loaded(cczBmpFilePath);
-		QCOMPARE(loaded.size(), QSize(16, 16));
-	}
+	QVERIFY(testImage().save(cczBmpFilePath));
+	QCOMPARE(QImage(cczBmpFilePath).size(), testImage().size());
+}
+
+void Tests::testImageFormatPluginFileReadWrite()
+{
+	QTemporaryDir dir;
 
 	auto cczPngFilePath = dir.filePath("test.png.ccz");
 	{
 		QImageWriter writer(cczPngFilePath);
 		QVERIFY(writer.canWrite());
-		QVERIFY(writer.write(test));
+		QVERIFY(writer.write(testImage()));
 	}
 	{
 		QImageReader reader(cczPngFilePath);
 		QVERIFY(reader.canRead());
 		QCOMPARE(reader.subType(), QByteArrayLiteral("png"));
-		auto loaded = reader.read();
-		QCOMPARE(loaded.size(), QSize(16, 16));
+		QCOMPARE(reader.read().size(), testImage().size());
 	}
+}
 
+void Tests::testImageFormatPluginBufferReadWrite()
+{
 	QBuffer buffer;
 	{
 		buffer.open(QBuffer::WriteOnly);
@@ -179,7 +194,7 @@ void Tests::testImageFormatPlugin()
 		writer.setCompression(70);
 		writer.setSubType("jpg");
 		QVERIFY(writer.canWrite());
-		QVERIFY(writer.write(test));
+		QVERIFY(writer.write(testImage()));
 		buffer.close();
 	}
 	{
@@ -187,8 +202,39 @@ void Tests::testImageFormatPlugin()
 		QImageReader reader(&buffer);
 		QCOMPARE(reader.format(), QByteArrayLiteral("ccz"));
 		QVERIFY(reader.subType().startsWith("jpeg"));
-		auto loaded = reader.read();
-		QCOMPARE(loaded.size(), QSize(16, 16));
+
+		auto expectedSize = testImage().size();
+
+		QCOMPARE(reader.read().size(), expectedSize);
+
+		expectedSize.rwidth() /= 2;
+		expectedSize.rheight() /= 2;
+
+		reader.setDevice(&buffer);
+		buffer.reset();
+
+		reader.setClipRect(QRect(
+			QPoint(expectedSize.width(), expectedSize.height()), expectedSize));
+		QCOMPARE(reader.read().size(), expectedSize);
+
+		expectedSize.rwidth() /= 2;
+		expectedSize.rheight() /= 2;
+
+		reader.setDevice(&buffer);
+		buffer.reset();
+
+		reader.setScaledSize(expectedSize);
+		QCOMPARE(reader.read().size(), expectedSize);
+
+		expectedSize.rwidth() /= 2;
+		expectedSize.rheight() /= 2;
+
+		reader.setDevice(&buffer);
+		buffer.reset();
+
+		reader.setScaledClipRect(QRect(
+			QPoint(expectedSize.width(), expectedSize.height()), expectedSize));
+		QCOMPARE(reader.read().size(), expectedSize);
 		buffer.close();
 	}
 }
