@@ -2,7 +2,7 @@
 
 #include <QObject>
 
-class QZStreamBase;
+class QZStream;
 
 class Tests : public QObject
 {
@@ -11,6 +11,10 @@ class Tests : public QObject
 private slots:
 	void test_data();
 	void test();
+	void testImageFormatPluginInit();
+	void testImageFormatPluginFileSaveLoad();
+	void testImageFormatPluginFileReadWrite();
+	void testImageFormatPluginBufferReadWrite();
 
 private:
 	enum
@@ -19,6 +23,7 @@ private:
 		COMPRESS_CCZ
 	};
 
-	static QZStreamBase *newCompressor(int type);
-	static QZStreamBase *newDecompressor(int type, int uncompressedSize);
+	static QZStream *newCompressor(int type);
+	static QZStream *newDecompressor(int type, int uncompressedSize);
+	static const QImage &testImage();
 };

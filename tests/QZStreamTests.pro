@@ -6,7 +6,7 @@
 
 QT       += testlib
 
-QT       -= gui
+QT       += gui
 
 TARGET = QZStreamTests
 CONFIG   += console
@@ -25,13 +25,4 @@ SOURCES += \
 
 INCLUDEPATH += ../lib
 
-include(../QZStream.pri)
-
-CONFIG(debug, debug|release) {
-    CONFIG_DIR = Debug
-} else {
-    CONFIG_DIR = Release
-}
-
-LIBS += -L$$_PRO_FILE_PWD_/../build/$$CONFIG_DIR
-LIBS += -lQZStream
+include(../QZStreamDepend.pri)

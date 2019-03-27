@@ -6,83 +6,82 @@
 #include <QDataStream>
 
 static const char CCZ_Signature[] = "CCZ!";
+
 enum
 {
 	CCZ_SIGNATURE_SIZE = sizeof(CCZ_Signature) - 1,
-	CCZ_VERSION = 2
+	CCZ_VERSION = 2,
+	CCZ_COMPRESSION_ZLIB = 0
 };
 
 // Format header
 struct CCZHeader
 {
 	char sig[CCZ_SIGNATURE_SIZE]; // signature. Should be 'CCZ!' 4 bytes
-	quint16 compression_type; // should 0 (See below for supported formats)
+	quint16 compression_type; // should 0 (See above for supported formats)
 	quint16 version; // should be 2
-	quint32 reserved; // Reserverd for users.
+	quint32 reserved; // Reserved for users
 	quint32 len; // size of the uncompressed file
+
+	bool readFrom(QIODevice *device);
 };
 
-enum
+namespace CCZ
 {
-	CCZ_COMPRESSION_ZLIB = 0
-};
+bool validateHeader(QIODevice *device)
+{
+	if (!device || !device->isReadable())
+		return false;
 
-QCCZDecompressionStream::QCCZDecompressionStream(QObject *parent)
-	: QZDecompressionStream(parent)
+	device->startTransaction();
+	CCZHeader header;
+	bool ok = header.readFrom(device);
+	device->rollbackTransaction();
+
+	return ok;
+}
+}
+
+QCCZDecompressor::QCCZDecompressor(QObject *parent)
+	: QCCZDecompressor(nullptr, parent)
 {
 }
 
-QCCZDecompressionStream::QCCZDecompressionStream(
-	QIODevice *source, QObject *parent)
-	: QZDecompressionStream(source, -1, parent)
+QCCZDecompressor::QCCZDecompressor(QIODevice *source, QObject *parent)
+	: QZDecompressor(source, -1, parent)
+	, mUserValue(0)
 {
 }
 
-QCCZDecompressionStream::~QCCZDecompressionStream()
+QCCZDecompressor::~QCCZDecompressor()
 {
 	close();
 }
 
-void QCCZDecompressionStream::close()
+void QCCZDecompressor::close()
 {
 	if (!isOpen())
 		return;
 
-	QZDecompressionStream::close();
+	QZDecompressor::close();
 
 	mIODeviceOriginalPosition -= sizeof(CCZHeader);
 }
 
-bool QCCZDecompressionStream::initOpen(OpenMode mode)
+bool QCCZDecompressor::initOpen(OpenMode mode)
 {
-	if (QZDecompressionStream::initOpen(mode))
+	if (QZDecompressor::initOpen(mode))
 	{
 		do
 		{
 			if (!ioDeviceSeekInit())
 				break;
 
-			QDataStream stream(mIODevice);
-			stream.setByteOrder(QDataStream::BigEndian);
 			CCZHeader header;
-			stream.readRawData(header.sig, CCZ_SIGNATURE_SIZE);
-			if (0 != memcmp(header.sig, CCZ_Signature, CCZ_SIGNATURE_SIZE))
+			if (!header.readFrom(mIODevice))
 				break;
 
-			stream >> header.compression_type;
-
-			if (CCZ_COMPRESSION_ZLIB != header.compression_type)
-				break;
-
-			stream >> header.version;
-			if (CCZ_VERSION != header.version)
-				break;
-
-			stream >> header.reserved;
-			stream >> header.len;
-
-			if (stream.status() != QDataStream::Ok)
-				break;
+			mUserValue = header.reserved;
 
 			setUncompressedSize(header.len);
 
@@ -99,35 +98,50 @@ bool QCCZDecompressionStream::initOpen(OpenMode mode)
 	return false;
 }
 
-QCCZCompressionStream::QCCZCompressionStream(QObject *parent)
-	: QZCompressionStream(parent)
-	, mBytes(nullptr)
-	, mCCZBuffer(nullptr)
-	, mTarget(nullptr)
-	, mSavePosition(0)
+QCCZCompressor::QCCZCompressor(QObject *parent)
+	: QCCZCompressor(nullptr, -1, parent)
 {
 }
 
-QCCZCompressionStream::QCCZCompressionStream(
+QCCZCompressor::QCCZCompressor(
 	QIODevice *target, int compressionLevel, QObject *parent)
-	: QZCompressionStream(target, compressionLevel, parent)
+	: QZCompressor(target, compressionLevel, parent)
 	, mBytes(nullptr)
 	, mCCZBuffer(nullptr)
 	, mTarget(nullptr)
 	, mSavePosition(0)
+	, mUserValue(0)
 {
 	mCompressionLevel = compressionLevel;
 }
 
-QCCZCompressionStream::~QCCZCompressionStream()
+QCCZCompressor::~QCCZCompressor()
 {
 	close();
 }
 
-bool QCCZCompressionStream::initOpen(OpenMode mode)
+bool QCCZCompressor::open(OpenMode mode)
+{
+	bool ok = QZCompressor::open(mode);
+	if (ok)
+	{
+		QObject::connect(
+			mTarget, &QIODevice::aboutToClose, this, &QCCZCompressor::close);
+	} else
+	{
+		delete mCCZBuffer;
+		delete mBytes;
+		mCCZBuffer = nullptr;
+		mBytes = nullptr;
+	}
+
+	return ok;
+}
+
+bool QCCZCompressor::initOpen(OpenMode mode)
 {
 	mTarget = mIODevice;
-	if (!QZCompressionStream::initOpen(mode))
+	if (!QZCompressor::initOpen(mode))
 		return false;
 
 	mBytes = new QByteArray;
@@ -136,19 +150,22 @@ bool QCCZCompressionStream::initOpen(OpenMode mode)
 	mSavePosition = mIODeviceOriginalPosition;
 	mIODeviceOriginalPosition = 0;
 
-	bool bufferOpenOk = QZCompressionStream::initOpen(mode);
+	bool bufferOpenOk = QZCompressor::initOpen(mode);
 	Q_ASSERT(bufferOpenOk);
 	Q_UNUSED(bufferOpenOk);
 
 	return true;
 }
 
-void QCCZCompressionStream::close()
+void QCCZCompressor::close()
 {
 	if (!isOpen())
 		return;
 
-	QZCompressionStream::close();
+	QObject::disconnect(
+		mTarget, &QIODevice::aboutToClose, this, &QCCZCompressor::close);
+
+	QZCompressor::close();
 
 	Q_ASSERT(nullptr != mCCZBuffer);
 	Q_ASSERT(nullptr != mBytes);
@@ -178,7 +195,7 @@ void QCCZCompressionStream::close()
 				stream << header.compression_type;
 				header.version = CCZ_VERSION;
 				stream << header.version;
-				header.reserved = 0;
+				header.reserved = mUserValue;
 				stream << header.reserved;
 				header.len = quint32(mZStream.total_in);
 				stream << header.len;
@@ -204,4 +221,28 @@ void QCCZCompressionStream::close()
 	delete mBytes;
 	mCCZBuffer = nullptr;
 	mBytes = nullptr;
+	flushToFile();
+}
+
+bool CCZHeader::readFrom(QIODevice *device)
+{
+	QDataStream stream(device);
+	stream.setByteOrder(QDataStream::BigEndian);
+	stream.readRawData(sig, CCZ_SIGNATURE_SIZE);
+	if (0 != memcmp(sig, CCZ_Signature, CCZ_SIGNATURE_SIZE))
+		return false;
+
+	stream >> compression_type;
+
+	if (CCZ_COMPRESSION_ZLIB != compression_type)
+		return false;
+
+	stream >> version;
+	if (CCZ_VERSION != version)
+		return false;
+
+	stream >> reserved;
+	stream >> len;
+
+	return stream.status() == QDataStream::Ok;
 }
