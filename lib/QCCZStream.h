@@ -21,9 +21,19 @@ public:
 
 	virtual void close() override;
 
+	inline quint32 userValue() const;
+
 protected:
 	virtual bool initOpen(OpenMode mode) override;
+
+private:
+	quint32 mUserValue;
 };
+
+quint32 QCCZDecompressor::userValue() const
+{
+	return mUserValue;
+}
 
 class QCCZCompressor final : public QZCompressor
 {
@@ -39,6 +49,9 @@ public:
 	virtual bool open(OpenMode mode = WriteOnly) override;
 	virtual void close() override;
 
+	inline quint32 userValue() const;
+	inline void setUserValue(quint32 value);
+
 protected:
 	virtual bool initOpen(OpenMode mode) override;
 
@@ -48,4 +61,15 @@ private:
 	QIODevice *mTarget;
 
 	qint64 mSavePosition;
+	quint32 mUserValue;
 };
+
+quint32 QCCZCompressor::userValue() const
+{
+	return mUserValue;
+}
+
+void QCCZCompressor::setUserValue(quint32 value)
+{
+	mUserValue = value;
+}

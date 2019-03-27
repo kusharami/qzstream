@@ -43,12 +43,13 @@ bool validateHeader(QIODevice *device)
 }
 
 QCCZDecompressor::QCCZDecompressor(QObject *parent)
-	: QZDecompressor(parent)
+	: QCCZDecompressor(nullptr, parent)
 {
 }
 
 QCCZDecompressor::QCCZDecompressor(QIODevice *source, QObject *parent)
 	: QZDecompressor(source, -1, parent)
+	, mUserValue(0)
 {
 }
 
@@ -80,6 +81,8 @@ bool QCCZDecompressor::initOpen(OpenMode mode)
 			if (!header.readFrom(mIODevice))
 				break;
 
+			mUserValue = header.reserved;
+
 			setUncompressedSize(header.len);
 
 			mIODevicePosition += sizeof(CCZHeader);
@@ -96,11 +99,7 @@ bool QCCZDecompressor::initOpen(OpenMode mode)
 }
 
 QCCZCompressor::QCCZCompressor(QObject *parent)
-	: QZCompressor(parent)
-	, mBytes(nullptr)
-	, mCCZBuffer(nullptr)
-	, mTarget(nullptr)
-	, mSavePosition(0)
+	: QCCZCompressor(nullptr, -1, parent)
 {
 }
 
@@ -111,6 +110,7 @@ QCCZCompressor::QCCZCompressor(
 	, mCCZBuffer(nullptr)
 	, mTarget(nullptr)
 	, mSavePosition(0)
+	, mUserValue(0)
 {
 	mCompressionLevel = compressionLevel;
 }
@@ -195,7 +195,7 @@ void QCCZCompressor::close()
 				stream << header.compression_type;
 				header.version = CCZ_VERSION;
 				stream << header.version;
-				header.reserved = 0;
+				header.reserved = mUserValue;
 				stream << header.reserved;
 				header.len = quint32(mZStream.total_in);
 				stream << header.len;
