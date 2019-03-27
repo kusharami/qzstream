@@ -162,7 +162,7 @@ void Tests::testImageFormatPluginFileSaveLoad()
 {
 	QTemporaryDir dir;
 
-	auto cczBmpFilePath = dir.filePath("test.bmp.ccz");
+	auto cczBmpFilePath = QDir(dir.path()).filePath("test.bmp.ccz");
 	QVERIFY(testImage().save(cczBmpFilePath));
 	QCOMPARE(QImage(cczBmpFilePath).size(), testImage().size());
 }
@@ -171,7 +171,7 @@ void Tests::testImageFormatPluginFileReadWrite()
 {
 	QTemporaryDir dir;
 
-	auto cczPngFilePath = dir.filePath("test.png.ccz");
+	auto cczPngFilePath =  QDir(dir.path()).filePath("test.png.ccz");
 	{
 		QImageWriter writer(cczPngFilePath);
 		QVERIFY(writer.canWrite());
