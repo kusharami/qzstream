@@ -14,6 +14,12 @@ CONFIG   -= app_bundle
 
 TEMPLATE = app
 
+CONFIG += warn_off
+unix {
+    QMAKE_CXXFLAGS_WARN_OFF -= -w
+    QMAKE_CXXFLAGS += -Wall -Wno-unused-private-field
+}
+
 DEFINES += SRCDIR=\\\"$$PWD/\\\"
 
 HEADERS += \
