@@ -1,7 +1,7 @@
 QIODevice based ZLIB compresssion/decompression library
 =======================================================
 
-v2.0.0  27.03.2019
+v2.0.0  28.03.2019
 	[NEW] CCZ user 32 bit value read/write from header
 	[FIX] Fixed crash when target file device is destroyed before
 	 QZCompressor made the final write.
