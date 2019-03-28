@@ -6,6 +6,7 @@
 #include <QImageWriter>
 #include <QFileDevice>
 #include <QFileInfo>
+#include <QBuffer>
 
 #include "QCCZStream.h"
 #undef compress
@@ -385,6 +386,8 @@ const QList<QByteArray> &QCCZImageContainerHandler::supportedSubTypes()
 		int capacity = int(allImageFormats.size());
 		result.reserve(capacity);
 
+		QBuffer dummy;
+		dummy.open(QIODevice::ReadOnly);
 		for (const auto &format : allImageFormats)
 		{
 			result.append(format);
@@ -393,8 +396,7 @@ const QList<QByteArray> &QCCZImageContainerHandler::supportedSubTypes()
 				continue;
 			}
 
-			QImageWriter writer;
-			writer.setFormat(format);
+			QImageWriter writer(&dummy, format);
 			auto subTypes = writer.supportedSubTypes();
 			if (subTypes.isEmpty())
 			{
