@@ -112,7 +112,6 @@ QCCZCompressor::QCCZCompressor(
 	, mSavePosition(0)
 	, mUserValue(0)
 {
-	mCompressionLevel = compressionLevel;
 }
 
 QCCZCompressor::~QCCZCompressor()
