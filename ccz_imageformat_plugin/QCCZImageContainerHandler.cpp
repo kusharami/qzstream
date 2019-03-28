@@ -385,7 +385,6 @@ const QList<QByteArray> &QCCZImageContainerHandler::supportedSubTypes()
 		int capacity = int(allImageFormats.size());
 		result.reserve(capacity);
 
-		QImageWriter writer;
 		for (const auto &format : allImageFormats)
 		{
 			result.append(format);
@@ -394,6 +393,7 @@ const QList<QByteArray> &QCCZImageContainerHandler::supportedSubTypes()
 				continue;
 			}
 
+			QImageWriter writer;
 			writer.setFormat(format);
 			auto subTypes = writer.supportedSubTypes();
 			if (subTypes.isEmpty())
