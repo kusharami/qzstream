@@ -1,5 +1,8 @@
 CCZ image container format plugin for Qt
 ========================================
 
+v1.0.1  05.09.2019
+    [NEW] Use framework v2.0.1.
+
 v1.0.0  28.03.2019
     [NEW] Initial release.

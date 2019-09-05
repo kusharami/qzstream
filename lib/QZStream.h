@@ -6,6 +6,8 @@
 
 class QZStream : public QIODevice
 {
+	Q_OBJECT
+
 public:
 	inline QIODevice *ioDevice() const;
 	void setIODevice(QIODevice *ioDevice);
