@@ -13,6 +13,10 @@ else:gcc:QZSTREAM_BIN_DIR = $$QZSTREAM_BIN_DIR-gcc
 
 QZSTREAM_BIN_DIR = $$QZSTREAM_BIN_DIR-$$QT_ARCH
 
+CONFIG(static, static) {
+    QZSTREAM_BIN_DIR = $$QZSTREAM_BIN_DIR-static
+}
+
 CONFIG(debug, debug|release) {
     QZSTREAM_BIN_DIR = $$QZSTREAM_BIN_DIR/debug
 } 
