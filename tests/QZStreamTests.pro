@@ -29,6 +29,4 @@ SOURCES += \
     main.cpp \
     Tests.cpp
 
-INCLUDEPATH += ../lib
-
 include(../QZStreamDepend.pri)
