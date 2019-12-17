@@ -7,6 +7,8 @@ CONFIG += plugin
 
 CONFIG += c++11 warn_off
 
+DEFINES += QT_NO_DEPRECATED_WARNINGS
+
 include(../QZStreamDepend.pri)
 
 CONFIG(static, static) {
