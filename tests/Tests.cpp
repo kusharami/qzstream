@@ -11,6 +11,8 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include <set>
+
 #define QADD_COLUMN(type, name) QTest::addColumn<type>(#name);
 
 void Tests::test_data()
@@ -171,7 +173,7 @@ void Tests::testImageFormatPluginFileReadWrite()
 {
 	QTemporaryDir dir;
 
-	auto cczPngFilePath =  QDir(dir.path()).filePath("test.png.ccz");
+	auto cczPngFilePath = QDir(dir.path()).filePath("test.png.ccz");
 	{
 		QImageWriter writer(cczPngFilePath);
 		QVERIFY(writer.canWrite());
