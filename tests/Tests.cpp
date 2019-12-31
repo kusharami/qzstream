@@ -13,7 +13,7 @@
 
 #include <set>
 
-#define QADD_COLUMN(type, name) QTest::addColumn<type>(#name);
+#define QADD_COLUMN(type, name) QTest::addColumn<type>(#name)
 
 void Tests::test_data()
 {
