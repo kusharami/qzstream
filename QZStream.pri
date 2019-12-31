@@ -1,12 +1,30 @@
-CONFIG(debug, debug|release) {
-    QZSTREAM_CONFIG_DIR = Debug
-} else {
-    QZSTREAM_CONFIG_DIR = Release
+QZSTREAM_BIN_DIR = $$PWD/bin
+
+macx:QZSTREAM_BIN_DIR = $$QZSTREAM_BIN_DIR-macx
+linux:QZSTREAM_BIN_DIR = $$QZSTREAM_BIN_DIR-linux
+emscripten:QZSTREAM_BIN_DIR = $$QZSTREAM_BIN_DIR-emscripten
+win32 {
+    QZSTREAM_BIN_DIR = $$QZSTREAM_BIN_DIR-win32
+    msvc:QZSTREAM_BIN_DIR = $$QZSTREAM_BIN_DIR-msvc
 }
 
-QZSTREAM_LIB_DIR = $$PWD/build/$$QZSTREAM_CONFIG_DIR
+clang:QZSTREAM_BIN_DIR = $$QZSTREAM_BIN_DIR-clang
+else:gcc:QZSTREAM_BIN_DIR = $$QZSTREAM_BIN_DIR-gcc
 
-unix:LIBS += -lz
-win32:INCLUDEPATH += $$[QT_INSTALL_HEADERS]/QtZlib
+QZSTREAM_BIN_DIR = $$QZSTREAM_BIN_DIR-$$QT_ARCH
+
+CONFIG(static, static) {
+    QZSTREAM_BIN_DIR = $$QZSTREAM_BIN_DIR-static
+}
+
+CONFIG(debug, debug|release) {
+    QZSTREAM_BIN_DIR = $$QZSTREAM_BIN_DIR/debug
+} 
+
+win32|emscripten {
+    INCLUDEPATH += $$[QT_INSTALL_HEADERS]/QtZlib
+} else {
+    LIBS += -lz
+}
 
 DEFINES += ZLIB_CONST

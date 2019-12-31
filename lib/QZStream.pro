@@ -28,6 +28,6 @@ SOURCES += \
     QCCZStream.cpp
 
 include(../QZStream.pri)
-DESTDIR = $$QZSTREAM_LIB_DIR
+DESTDIR = $$QZSTREAM_BIN_DIR
 
 DISTFILES += CHANGELOG
