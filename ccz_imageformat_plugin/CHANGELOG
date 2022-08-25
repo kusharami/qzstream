@@ -1,6 +1,9 @@
 CCZ image container format plugin for Qt
 ========================================
 
+v1.0.2  25.08.2022
+    [FIX] Use QZStream v2.0.2
+
 v1.0.1  05.09.2019
     [NEW] Use framework v2.0.1.
 
