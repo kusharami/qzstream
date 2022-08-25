@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <QIODevice>
+#include <memory>
 
 #include <zlib.h>
 
@@ -37,7 +38,7 @@ protected:
 		BUFFER_SIZE = 32768
 	};
 
-	Bytef mBuffer[BUFFER_SIZE];
+	std::unique_ptr<Bytef[]> mBuffer;
 
 	z_stream mZStream;
 

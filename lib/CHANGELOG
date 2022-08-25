@@ -1,6 +1,9 @@
 QIODevice based ZLIB compresssion/decompression library
 =======================================================
 
+v2.0.2	25.08.2022
+    [FIX] Can create QZStream on stack
+
 v2.0.1	05.09.2019
 	[NEW] QZStream is Q_OBJECT.
 

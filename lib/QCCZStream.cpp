@@ -40,7 +40,7 @@ bool validateHeader(QIODevice *device)
 
 	return ok;
 }
-}
+} // namespace CCZ
 
 QCCZDecompressor::QCCZDecompressor(QObject *parent)
 	: QCCZDecompressor(nullptr, parent)
@@ -55,7 +55,7 @@ QCCZDecompressor::QCCZDecompressor(QIODevice *source, QObject *parent)
 
 QCCZDecompressor::~QCCZDecompressor()
 {
-	close();
+	QCCZDecompressor::close();
 }
 
 void QCCZDecompressor::close()
@@ -116,7 +116,7 @@ QCCZCompressor::QCCZCompressor(
 
 QCCZCompressor::~QCCZCompressor()
 {
-	close();
+	QCCZCompressor::close();
 }
 
 bool QCCZCompressor::open(OpenMode mode)

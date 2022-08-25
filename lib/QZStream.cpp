@@ -6,6 +6,7 @@ QZStream::QZStream(QObject *parent)
 	, mIODevice(nullptr)
 	, mIODeviceOriginalPosition(0)
 	, mIODevicePosition(0)
+	, mBuffer(new Bytef[BUFFER_SIZE])
 	, mHasError(false)
 {
 	memset(&mZStream, 0, sizeof(mZStream));
@@ -117,7 +118,7 @@ QZDecompressor::QZDecompressor(
 
 QZDecompressor::~QZDecompressor()
 {
-	close();
+	QZDecompressor::close();
 }
 
 bool QZDecompressor::isSequential() const
@@ -244,7 +245,7 @@ bool QZDecompressor::initOpen(OpenMode mode)
 	mHasError = false;
 	setErrorString(QString());
 	mIODevicePosition = mIODeviceOriginalPosition;
-	mZStream.next_in = mBuffer;
+	mZStream.next_in = mBuffer.get();
 	mZStream.avail_in = 0;
 
 	return true;
@@ -269,7 +270,7 @@ bool QZDecompressor::seekInternal(qint64 pos)
 
 		mIODevicePosition = mIODeviceOriginalPosition;
 
-		mZStream.next_in = mBuffer;
+		mZStream.next_in = mBuffer.get();
 		mZStream.avail_in = 0;
 	} else
 	{
@@ -320,7 +321,7 @@ qint64 QZDecompressor::readInternal(char *data, qint64 maxlen)
 			if (mZStream.avail_in == 0)
 			{
 				auto readResult = mIODevice->read(
-					reinterpret_cast<char *>(mBuffer), sizeof(mBuffer));
+					reinterpret_cast<char *>(mBuffer.get()), BUFFER_SIZE);
 				mZStream.avail_in = readResult >= 0
 					? static_cast<decltype(mZStream.avail_in)>(readResult)
 					: 0;
@@ -337,7 +338,7 @@ qint64 QZDecompressor::readInternal(char *data, qint64 maxlen)
 					break;
 				}
 
-				mZStream.next_in = mBuffer;
+				mZStream.next_in = mBuffer.get();
 				mIODevicePosition += mZStream.avail_in;
 			}
 
@@ -377,7 +378,7 @@ QZCompressor::QZCompressor(
 
 QZCompressor::~QZCompressor()
 {
-	close();
+	QZCompressor::close();
 }
 
 bool QZCompressor::isSequential() const
@@ -450,14 +451,14 @@ void QZCompressor::close()
 			if (!flushBuffer())
 				break;
 
-			mZStream.next_out = mBuffer;
-			mZStream.avail_out = sizeof(mBuffer);
+			mZStream.next_out = mBuffer.get();
+			mZStream.avail_out = uInt(BUFFER_SIZE);
 		}
 	}
 
-	if (!mHasError && mZStream.avail_out < sizeof(mBuffer))
+	if (!mHasError && mZStream.avail_out < BUFFER_SIZE)
 	{
-		flushBuffer(sizeof(mBuffer) - mZStream.avail_out);
+		flushBuffer(int(BUFFER_SIZE - mZStream.avail_out));
 	}
 
 	check(deflateEnd(&mZStream));
@@ -520,9 +521,9 @@ qint64 QZCompressor::writeData(const char *data, qint64 maxlen)
 					break;
 				}
 
-				mIODevicePosition += sizeof(mBuffer);
-				mZStream.next_out = mBuffer;
-				mZStream.avail_out = sizeof(mBuffer);
+				mIODevicePosition += BUFFER_SIZE;
+				mZStream.next_out = mBuffer.get();
+				mZStream.avail_out = uInt(BUFFER_SIZE);
 			}
 		}
 
@@ -567,8 +568,8 @@ bool QZCompressor::initOpen(OpenMode mode)
 	setErrorString(QString());
 
 	mIODevicePosition = mIODeviceOriginalPosition;
-	mZStream.next_out = mBuffer;
-	mZStream.avail_out = sizeof(mBuffer);
+	mZStream.next_out = mBuffer.get();
+	mZStream.avail_out = uInt(BUFFER_SIZE);
 
 	return true;
 }
@@ -588,7 +589,7 @@ qint64 QZCompressor::bytesAvailable() const
 bool QZCompressor::flushBuffer(int size)
 {
 	Q_ASSERT(mIODevice->isOpen());
-	if (mIODevice->write(reinterpret_cast<char *>(mBuffer), size) != size)
+	if (mIODevice->write(reinterpret_cast<char *>(mBuffer.get()), size) != size)
 	{
 		mHasError = true;
 		setErrorString(mIODevice->errorString());
